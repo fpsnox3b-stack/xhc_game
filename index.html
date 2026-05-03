@@ -255,7 +255,7 @@
     <h1>新华初模拟器</h1>
     <button onclick="startGame()">开始游戏</button>
     <button onclick="showAchievements()" style="margin-top: 15px; background: #95a5a6; padding: 10px 30px; font-size: 1rem;">🏆 结局成就</button>
-    <div class="version-label">v0.377</div>
+    <div class="version-label">v0.378</div>
 </div>
 
 <div id="achievements-screen">
@@ -616,11 +616,10 @@
 
         hiddenAchData.forEach(ach => {
             const isUnlocked = unlocked.includes(ach.id);
-            if (!isUnlocked) return;
             achList.innerHTML += `
-                <div class="ach-item unlocked">
-                    <div class="ach-title">隐藏成就：${ach.title} <span>✨</span></div>
-                    <div class="ach-desc">${ach.desc}</div>
+                <div class="ach-item ${isUnlocked ? 'unlocked' : ''}">
+                    <div class="ach-title">${isUnlocked ? `隐藏成就：${ach.title}` : '隐藏成就'} <span>${isUnlocked ? '✨' : '🔒'}</span></div>
+                    <div class="ach-desc">${isUnlocked ? ach.desc : '？？？'}</div>
                 </div>
             `;
         });
@@ -2350,26 +2349,27 @@
                 school = "普通高中边缘";
             }
             
-            if (score >= 580 && state.social >= 65) {
+            // 先判断更有特色的路线，再判断普通高分路线，避免“朋友成群”和“驴老师的爱徒”被学霸结局覆盖。
+            if (score >= 580 && state.social >= 65 && state.teacherFavor >= 70) {
                 title = "六边形战士";
-                desc = `你以接近顶尖的成绩考入了【${school}】，同时还是班级里的人气王。学习、朋友、老师评价，你几乎都没有落下。新华初的四年，被你打出了近乎完美的路线。`;
+                desc = `你以接近顶尖的成绩考入了【${school}】，同时还是班级里的人气王，连严厉的驴老师都对你相当认可。学习、朋友、老师评价，你几乎都没有落下。新华初的四年，被你打出了近乎完美的路线。`;
                 achKey = "end_grad_1";
             } else if (score >= 580 && state.social < 40) {
                 title = "虹口做题家";
                 desc = `你靠着夜以继日的努力考入了【${school}】。只是这一路上，你把太多时间留给了卷子和错题本。毕业那天，看着别人合影留念，你默默背着书包独自离开了校园……`;
                 achKey = "end_grad_2";
+            } else if (state.teacherFavor >= 85 && score >= 500 && state.social < 75) {
+                title = "驴老师的爱徒";
+                desc = `你最终考入了【${school}】。成绩或许不是最顶尖的，但你极其对驴老师的胃口。毕业典礼上，平时不苟言笑的他特意拉着你单独嘱咐了很久，你成了他难忘的学生。`;
+                achKey = "end_grad_5";
+            } else if (state.social >= 75 && score >= 500 && state.teacherFavor < 85) {
+                title = "朋友成群";
+                desc = `你最终考入了【${school}】。成绩或许不是最耀眼的，但在新华初的四年里，你收获了最可贵的友谊。毕业时，朋友们拉着你拍了无数张合影，青春没有遗憾。`;
+                achKey = "end_grad_4";
             } else if (score >= 570) {
                 title = "学霸本霸";
                 desc = `你稳扎稳打，最终以相当优秀的成绩考入了【${school}】。虽然你的初中生涯没有太多波澜壮阔的传奇，但这份录取结果证明了你所有的汗水。`;
                 achKey = "end_grad_3";
-            } else if (state.social >= 70) {
-                title = "朋友成群";
-                desc = `你最终考入了【${school}】。成绩或许不是最耀眼的，但在新华初的四年里，你收获了最可贵的友谊。毕业时，朋友们拉着你拍了无数张合影，青春没有遗憾。`;
-                achKey = "end_grad_4";
-            } else if (state.teacherFavor >= 80) {
-                title = "驴老师的爱徒";
-                desc = `你最终考入了【${school}】。成绩或许不是最顶尖的，但你极其对驴老师的胃口。毕业典礼上，平时不苟言笑的他特意拉着你单独嘱咐了很久，你成了他难忘的学生。`;
-                achKey = "end_grad_5";
             } else if (score < 500 && state.teacherFavor < 40) {
                 title = "混世魔丸";
                 desc = `你的成绩长期在危险线附近徘徊，驴老师看到你就头疼。虽然最后勉强摸到了【${school}】，但这四年的主要成就大概就是“没被劝退”了。`;

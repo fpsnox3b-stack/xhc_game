@@ -288,7 +288,7 @@
                 <div class="modal-title" style="margin-bottom:0; text-align:left;">校门口小商店</div>
                 <div class="shop-money">💰 <span id="shop-money">0</span></div>
             </div>
-            <div class="shop-tip">第一次寒假结束、进入 3 月后，家长会开始按月发零花钱。每个回合只能购买 1 件物品。</div>
+            <div class="shop-tip">第一次寒假结束、进入 3 月后，家长会开始按月发零花钱。每个回合只能购买 1 件物品；标有“限购”的特殊道具整局只能买 1 次。</div>
             <div class="shop-list" id="shop-list"></div>
             <div id="shop-result" class="result-box"></div>
             <button class="shop-close-btn" onclick="closeShop()">离开商店</button>
@@ -323,13 +323,14 @@
 
     // --- 游戏数据 ---
     const state = {
-        knowledge: 30,
+        knowledge: 90,
         social: 20,
         teacherFavor: 40,
         stress: 0,
         money: 0,
         shopUnlocked: false, // 第一次寒假结束、进入3月后才开启金钱与小卖部系统
         shopPurchasedThisTurn: false,
+        purchasedUniqueItems: {}, // 记录整局限购道具是否已经购买
         romance: {
             met: false,              // 是否遇到异性朋友
             ambiguous: false,        // 是否进入暧昧期
@@ -358,6 +359,76 @@
 
     const months = ["8月", "9月", "10月", "11月", "12月", "1月", "2月", "3月", "4月", "5月", "6月", "7月"];
     const grades = ["预备班", "初一", "初二", "初三"];
+    const knowledgeMaxByGrade = [300, 420, 530, 630];
+
+    function getCurrentGradeIndex() {
+        let g = Math.floor(state.monthIndex / 12);
+        const m = state.monthIndex % 12;
+        // 8月属于上一学年暑假，9月才正式进入下一学年。
+        if (m === 0 && state.monthIndex > 0) {
+            g -= 1;
+        }
+        return Math.max(0, Math.min(3, g));
+    }
+
+    function getKnowledgeMax() {
+        return knowledgeMaxByGrade[getCurrentGradeIndex()];
+    }
+
+    function getKnowledgeRate() {
+        return getKnowledgeMax() > 0 ? state.knowledge / getKnowledgeMax() : 0;
+    }
+
+    // 所有事件和行动里的 knowledge 数值仍按“百分制基准”填写。
+    // 例如 knowledge +4 会在预备班变成 +12，在初三变成 +25。
+    function k(percent) {
+        return Math.round(getKnowledgeMax() * percent / 100);
+    }
+
+    // 知识增长衰减：越接近中考高分段，继续提分越难。
+    // 只对“知识增加”生效；知识减少不衰减，避免高分玩家无成本试错。
+    function knowledgeGain(percent) {
+        const base = k(percent);
+        const score = state.knowledge;
+        let multiplier = 1;
+
+        if (score >= 600) {
+            multiplier = 0.20;
+        } else if (score >= 580) {
+            multiplier = 0.35;
+        } else if (score >= 550) {
+            multiplier = 0.55;
+        } else if (score >= 500) {
+            multiplier = 0.75;
+        }
+
+        return Math.max(1, Math.round(base * multiplier));
+    }
+
+    function scaleEffectValue(key, val) {
+        if (key !== 'knowledge') return val;
+        if (val > 0) return knowledgeGain(val);
+        if (val < 0) return -k(Math.abs(val));
+        return 0;
+    }
+
+    function applyEffectValue(key, val) {
+        const scaledVal = scaleEffectValue(key, val);
+        if (key === 'romanceAffection') {
+            state.romance.affection += scaledVal;
+        } else {
+            state[key] = (state[key] || 0) + scaledVal;
+        }
+        return scaledVal;
+    }
+
+    function getKnowledgeLabel() {
+        return `${Math.floor(state.knowledge)}/${getKnowledgeMax()}`;
+    }
+
+    function getKnowledgePercentWidth() {
+        return Math.max(0, Math.min(100, getKnowledgeRate() * 100));
+    }
 
     function getTermName(monthIndexInYear) {
         // 月份索引：0=8月，1=9月，2=10月，3=11月，4=12月，5=1月，6=2月，7=3月，8=4月，9=5月，10=6月，11=7月。
@@ -371,14 +442,20 @@
 
     // --- 商店道具 ---
     const shopItems = [
-        { id: "latiao", name: "辣条", price: 1, desc: "经久不衰的小零食，撕开包装就是校门口的味道。", effect: { stress: -1 } },
-        { id: "pencilcase", name: "流行笔盒", price: 10, desc: "最近班里很流行的款式，你的好朋友也很喜欢。", effect: { social: 5 } },
-        { id: "looseleaf", name: "高效活页本", price: 15, desc: "日本公司推出的活页版本，整理错题和课堂笔记都更方便。", effect: { knowledge: 5 } },
-        { id: "milktea", name: "珍珠奶茶", price: 6, desc: "放学后偷偷来一杯，糖分能暂时拯救被作业掏空的灵魂。", effect: { stress: -5, social: 1 } },
-        { id: "highlighter", name: "彩色荧光笔套装", price: 12, desc: "重点、难点、易错点一眼分明，连驴老师都觉得你的笔记像那么回事。", effect: { knowledge: 3, teacherFavor: 2 } },
-        { id: "basketballSticker", name: "篮球明星贴纸", price: 5, desc: "贴在课桌角落的小小暗号，懂球的同学会主动和你搭话。", effect: { social: 2, stress: -2 } },
-        { id: "referenceBook", name: "压轴题参考书", price: 20, desc: "厚得像砖头，但里面确实藏着提高分数的套路。", effect: { knowledge: 8, stress: 3 } },
-        { id: "deskLamp", name: "护眼台灯", price: 18, desc: "晚上写作业没那么刺眼了，熬夜复习也稍微舒服一点。", effect: { knowledge: 4, stress: -3 } }
+        // 普通道具：每回合限购 1 件，但整局可重复购买
+        { id: "latiao", name: "辣条", price: 2, desc: "经久不衰的小零食，撕开包装就是校门口的味道。", effect: { stress: -1 } },
+        { id: "milktea", name: "珍珠奶茶", price: 8, desc: "放学后偷偷来一杯，糖分能暂时拯救被作业掏空的灵魂。", effect: { stress: -5 } },
+        { id: "basketballSticker", name: "篮球明星贴纸", price: 12, desc: "贴在课桌角落的小小暗号，懂球的同学会主动和你搭话。", effect: { social: 3, stress: -2 } },
+        { id: "pencilcase", name: "流行笔盒", price: 16, desc: "最近班里很流行的款式，你的好朋友也很喜欢。", effect: { social: 4 } },
+        { id: "highlighter", name: "彩色荧光笔套装", price: 18, desc: "重点、难点、易错点一眼分明，复习时不会再被一整页黑字淹没。", effect: { knowledge: 2 } },
+
+        // 特殊道具：整局限购 1 次，用来避免后期无限堆数值
+        { id: "looseleaf", name: "高效活页本", price: 30, desc: "日本公司推出的活页版本，整理错题和课堂笔记都更方便。整局限购一次。", effect: { knowledge: 4, stress: 1 }, unique: true },
+        { id: "autoPencil", name: "进口自动铅笔", price: 25, desc: "握起来很顺手的进口自动铅笔，写起证明题时都多了几分优等生气质。整局限购一次。", effect: { knowledge: 2, teacherFavor: 3 }, unique: true },
+        { id: "deskLamp", name: "护眼台灯", price: 40, desc: "晚上写作业没那么刺眼了，熬夜复习也稍微舒服一点。整局限购一次。", effect: { knowledge: 3, stress: -4 }, unique: true },
+        { id: "referenceBook", name: "压轴题参考书", price: 45, desc: "厚得像砖头，但里面确实藏着提高分数的套路。整局限购一次。", effect: { knowledge: 6, stress: 5 }, unique: true },
+        { id: "cpBadge", name: "漫展纪念徽章", price: 30, desc: "从上海CP漫展带回来的小徽章，别在书包上时总有人会多看两眼。整局限购一次。", effect: { social: 6, stress: -5 }, unique: true },
+        { id: "secretDiary", name: "秘密交换日记", price: 35, desc: "只属于你们两个人的小本子，写下平时不敢说出口的话。恋爱线开启后出现，整局限购一次。", effect: { romanceAffection: 10, stress: -3 }, unique: true, condition: (s) => s.romance.met && !s.romance.ended }
     ];
 
     // --- 成就系统 ---
@@ -560,6 +637,43 @@
                 { txt: "默默走开，装作不认识", effect: { stress: -2 }, res: "你决定不参与这种危险活动，明哲保身。和“大祭司”一起纵火的同学后来被周边居民举报，挨了一顿批。" },
                 { txt: "果断举报给教导主任", effect: { teacherFavor: 10, social: -15 }, res: "火苗被及时扑灭，“大祭司”被通报批评。虽然阻止了危险，但同学们都觉得你是个爱打小报告的人。" }
             ]
+        },
+        {
+            title: "五角星的奥数课",
+            condition: () => getKnowledgeRate() >= 0.70,
+            desc: "隔壁班的数学老师五角星开了一节课后奥数加课。据说他讲题又快又狠，能听懂的人会觉得醍醐灌顶，听不懂的人只会觉得人生灰暗。只是这节课安排在放学后很晚，窗外天都黑了，教室里的白炽灯亮得人眼睛发酸。你翻开练习册，发现第一题就不像给正常初中生做的。",
+            choices: [
+                {
+                    txt: "强撑精神，认真听完整节课",
+                    effect: { knowledge: 6, stress: 10, teacherFavor: 3 },
+                    res: "你困得眼皮打架，但还是硬撑着把五角星的板书抄完。那些看似离谱的题目居然慢慢有了思路，五角星也注意到了你的认真。"
+                },
+                {
+                    txt: "只抓重点，先把方法记下来",
+                    effect: { knowledge: 4, stress: 5 },
+                    res: "你没有试图每一步都当场搞懂，而是把关键方法和常见套路先记下来。虽然还有不少地方云里雾里，但至少没有被彻底压垮。"
+                },
+                {
+                    txt: "实在太困，偷偷放空一会儿",
+                    effect: { stress: -4, knowledge: -1 },
+                    res: "你盯着黑板上的辅助线看了三分钟，意识已经飞到校门口的小卖部。稍微放空后你轻松了一点，但这节课基本没吸收多少。",
+                    chance: {
+                        prob: 0.65,
+                        failEffect: { stress: 8, teacherFavor: -5 },
+                        failRes: "你刚低头走神，五角星就点你回答问题。你支支吾吾半天说不出来，被他一句“这个状态上什么奥数？”当场打回现实。"
+                    }
+                },
+                {
+                    txt: "主动挑战最后一道压轴题",
+                    effect: { knowledge: 8, stress: 12, teacherFavor: 5 },
+                    res: "你咬着笔头想了很久，终于在草稿纸上找到突破口。五角星难得地点了点头，说你这题思路不错。你累得像跑完一千米，但成就感爆棚。",
+                    chance: {
+                        prob: 0.45,
+                        failEffect: { stress: 15, knowledge: 1 },
+                        failRes: "你盯着压轴题看了半节课，越想越乱，最后连题干都快看不懂了。五角星讲解时你才发现自己从第一步就跑偏，压力暴涨。"
+                    }
+                }
+            ]
         }
     ];
 
@@ -570,7 +684,7 @@
         if (state.teacherFavor <= 0 && !state.isGameOver) triggerEnding("teacher");
 
         // 统一限制数值范围在 0~100 之间，防止出现负压力或属性爆表
-        state.knowledge = Math.max(0, Math.min(100, state.knowledge));
+        state.knowledge = Math.max(0, Math.min(getKnowledgeMax(), state.knowledge));
         state.teacherFavor = Math.max(0, Math.min(100, state.teacherFavor));
         state.social = Math.max(0, Math.min(100, state.social));
         state.stress = Math.max(0, Math.min(100, state.stress));
@@ -588,12 +702,12 @@
         if (relationBtn) {
             relationBtn.style.display = (state.romance && state.romance.met) ? 'inline-flex' : 'none';
         }
-        document.getElementById('val-knowledge').innerText = Math.floor(state.knowledge);
+        document.getElementById('val-knowledge').innerText = getKnowledgeLabel();
         document.getElementById('val-teacher').innerText = Math.floor(state.teacherFavor);
         document.getElementById('val-social').innerText = Math.floor(state.social);
         document.getElementById('val-stress').innerText = Math.floor(state.stress);
 
-        document.getElementById('bar-knowledge').style.width = state.knowledge + '%';
+        document.getElementById('bar-knowledge').style.width = getKnowledgePercentWidth() + '%';
         document.getElementById('bar-teacher').style.width = state.teacherFavor + '%';
         document.getElementById('bar-social').style.width = state.social + '%';
         document.getElementById('bar-stress').style.width = state.stress + '%';
@@ -637,7 +751,7 @@
         const checks = [
             {
                 key: 'knowledge_low',
-                active: state.knowledge >= 0 && state.knowledge <= 10,
+                active: state.knowledge >= 0 && getKnowledgeRate() <= 0.10,
                 msg: '⚠️【危险预警】你的知识已经跌到极低水平，再继续荒废学业，就可能因为成绩垫底被劝退。'
             },
             {
@@ -700,17 +814,13 @@
         }
 
         let effectStr = [];
-        // 应用数值
+        // 应用数值。knowledge 会根据当前学年满分自动换算。
         for (let key in finalEffect) {
-            let val = finalEffect[key];
+            let rawVal = finalEffect[key];
+            let val = applyEffectValue(key, rawVal);
             let sign = val >= 0 ? "+" : "";
             let name = statNames[key] || key;
             effectStr.push(`${name} ${sign}${val}`);
-            if (key === 'romanceAffection') {
-                state.romance.affection += val;
-            } else {
-                state[key] = (state[key] || 0) + finalEffect[key];
-            }
         }
         applyRomanceUpdate(finalRomanceUpdate);
         if (resolved.unlockAchievement) unlockAchievement(resolved.unlockAchievement);
@@ -733,7 +843,7 @@
     function formatEffect(effect) {
         let effectStr = [];
         for (let key in effect) {
-            const val = effect[key];
+            const val = scaleEffectValue(key, effect[key]);
             const sign = val >= 0 ? "+" : "";
             const name = statNames[key] || key;
             effectStr.push(`${name} ${sign}${val}`);
@@ -958,7 +1068,7 @@
         },
         {
             title: "成绩下滑后的质问",
-            condition: () => state.knowledge < 60,
+            condition: () => getKnowledgeRate() < 0.60,
             desc: "这次测验你退步了几名。家长看着成绩单，又看了看你最近明显变多的手机使用时间，语气变得严肃起来：“你是不是心思没放在学习上？”",
             choices: [
                 { txt: "承认最近分心，认真调整", effect: { romanceAffection: -3, knowledge: 4, stress: 8 }, res: "你承认自己最近确实分心了。接下来的几天，你主动把注意力拉回学习，关系也暂时降温。" },
@@ -1242,7 +1352,7 @@
     }
 
     function maybeTriggerRomanceFixedEvent() {
-        if (state.monthIndex === 19 && !state.romance.met && !state.romance.ended && state.social > 50 && state.knowledge > 50) {
+        if (state.monthIndex === 19 && !state.romance.met && !state.romance.ended && state.social > 50 && getKnowledgeRate() > 0.50) {
             state.inEvent = true;
             setTimeout(() => triggerSpringOuting(), 500);
             return true;
@@ -1351,22 +1461,26 @@
         const list = document.getElementById('shop-list');
         list.innerHTML = '';
 
-        shopItems.forEach(item => {
-            const canAfford = state.money >= item.price;
-            const disabled = state.shopPurchasedThisTurn || !canAfford;
-            const disabledReason = state.shopPurchasedThisTurn ? '本回合已购买' : (!canAfford ? '钱不够' : `购买`);
-            const div = document.createElement('div');
-            div.className = 'shop-item';
-            div.innerHTML = `
-                <div>
-                    <div class="shop-item-name">${item.name} <span style="color:#92400e; font-weight:800;">💰${item.price}</span></div>
-                    <div class="shop-item-desc">${item.desc}</div>
-                    <div class="shop-item-effect">${formatEffect(item.effect)}</div>
-                </div>
-                <button class="shop-buy-btn" ${disabled ? 'disabled' : ''} onclick="buyItem('${item.id}')">${disabledReason}</button>
-            `;
-            list.appendChild(div);
-        });
+        shopItems
+            .filter(item => !item.condition || item.condition(state))
+            .forEach(item => {
+                const canAfford = state.money >= item.price;
+                const alreadyPurchased = item.unique && state.purchasedUniqueItems[item.id];
+                const disabled = state.shopPurchasedThisTurn || !canAfford || alreadyPurchased;
+                const disabledReason = alreadyPurchased ? '已购买' : (state.shopPurchasedThisTurn ? '本回合已购买' : (!canAfford ? '钱不够' : `购买`));
+                const uniqueTag = item.unique ? '<span style="color:#be123c; background:#ffe4e6; border-radius:999px; padding:2px 6px; font-size:0.75rem; margin-left:4px;">限购</span>' : '';
+                const div = document.createElement('div');
+                div.className = 'shop-item';
+                div.innerHTML = `
+                    <div>
+                        <div class="shop-item-name">${item.name}${uniqueTag} <span style="color:#92400e; font-weight:800;">💰${item.price}</span></div>
+                        <div class="shop-item-desc">${item.desc}</div>
+                        <div class="shop-item-effect">${formatEffect(item.effect)}</div>
+                    </div>
+                    <button class="shop-buy-btn" ${disabled ? 'disabled' : ''} onclick="buyItem('${item.id}')">${disabledReason}</button>
+                `;
+                list.appendChild(div);
+            });
     }
 
     function buyItem(itemId) {
@@ -1374,6 +1488,11 @@
         const item = shopItems.find(i => i.id === itemId);
         const resultBox = document.getElementById('shop-result');
         if (!item) return;
+        if (item.condition && !item.condition(state)) {
+            resultBox.style.display = 'block';
+            resultBox.innerHTML = '这个道具现在还没有上架。';
+            return;
+        }
 
         if (state.shopPurchasedThisTurn) {
             resultBox.style.display = 'block';
@@ -1385,15 +1504,27 @@
             resultBox.innerHTML = '你的零花钱不够，只能先恋恋不舍地放回货架。';
             return;
         }
+        if (item.unique && state.purchasedUniqueItems[item.id]) {
+            resultBox.style.display = 'block';
+            resultBox.innerHTML = '这个特殊道具整局只能购买一次，你已经买过了。';
+            return;
+        }
 
         state.money -= item.price;
         state.shopPurchasedThisTurn = true;
-
-        for (let key in item.effect) {
-            state[key] = (state[key] || 0) + item.effect[key];
+        if (item.unique) {
+            state.purchasedUniqueItems[item.id] = true;
         }
 
-        const effectText = formatEffect(item.effect);
+        let effectStr = [];
+        for (let key in item.effect) {
+            const appliedVal = applyEffectValue(key, item.effect[key]);
+            const sign = appliedVal >= 0 ? "+" : "";
+            const name = statNames[key] || key;
+            effectStr.push(`${name} ${sign}${appliedVal}`);
+        }
+
+        const effectText = effectStr.join('，');
         const msg = `你购买了【${item.name}】。${item.desc}<br><span style="color:var(--primary); font-size:0.9em; font-weight:bold;">金钱 -${item.price}，${effectText}</span>`;
         addLog(`【商店】${msg}`);
 
@@ -1410,10 +1541,10 @@
         let allowance = 5;
         let allowanceMsg = "成绩还算过得去，家长给了你 5 元零花钱，并叮嘱你：希望你能好好学习。";
 
-        if (state.knowledge >= 90) {
+        if (getKnowledgeRate() >= 0.90) {
             allowance = 10;
             allowanceMsg = "家长看你最近学习状态不错，难得大方地奖励了你 10 元零花钱。";
-        } else if (state.knowledge <= 60) {
+        } else if (getKnowledgeRate() <= 0.60) {
             allowance = 0;
             allowanceMsg = "家长看完你的学习状态后冷笑一声：考得太烂还要什么零花钱？本月零花钱为 0。";
         }
@@ -1439,13 +1570,14 @@
     // --- 游戏控制 ---
     function startGame() {
         // 重置游戏状态
-        state.knowledge = 30;
+        state.knowledge = 90;
         state.social = 20;
         state.teacherFavor = 40;
         state.stress = 0;
         state.money = 0;
         state.shopUnlocked = false;
         state.shopPurchasedThisTurn = false;
+        state.purchasedUniqueItems = {};
         resetRomance();
         state.warningFlags = {};
         state.monthIndex = 0;
@@ -1576,13 +1708,13 @@
                     msg = "学不进去，心烦意乱，对着书本发呆半天，知识毫无长进，压力反而增加了。";
                 } else if (rand < failProb + 0.10) {
                     // 忘我境界 (固定的10%概率)
-                    state.knowledge += 8;
+                    state.knowledge += knowledgeGain(7);
                     state.stress += 4;
                     state.social -= 2;
                     msg = "你进入了忘我的境界，学习效率奇高，不仅没觉得太累，还掌握了大量知识！";
                 } else {
                     // 普普通通
-                    state.knowledge += 5;
+                    state.knowledge += knowledgeGain(4);
                     state.stress += 8;
                     state.social -= 2;
                     msg = "你一头扎进作业里，知识点增加了，但头有点晕。";
@@ -1601,17 +1733,17 @@
                 if (socialRand < 0.2) {
                     state.social += 7;
                     state.stress -= 8;
-                    state.knowledge -= 2;
+                    state.knowledge -= k(2);
                     msg = "你和朋友玩得特别开心，感觉这个月的压力都被冲淡了。不过作业确实落下了一点。";
                 } else if (socialRand < 0.8) {
                     state.social += 5;
                     state.stress -= 5;
-                    state.knowledge -= 1;
+                    state.knowledge -= k(1);
                     msg = "你放学后和朋友一起聊天、买零食、散步，心情轻松了不少。";
                 } else {
                     state.social += 3;
                     state.stress += 5;
-                    state.knowledge -= 2;
+                    state.knowledge -= k(2);
                     state.teacherFavor -= 2;
                     msg = "你和朋友玩得有点过头，回家太晚，还被驴老师知道了。虽然关系更熟了，但麻烦也来了。";
                 }
@@ -1619,17 +1751,17 @@
             case 'play':
                 let playRand = Math.random();
 
-                if (playRand < 0.25) {
-                    state.stress -= 15;
-                    state.knowledge -= 4;
-                    msg = "你一回家就打开电脑，连赢几局，爽得不行。压力大幅下降，但作业和复习完全被抛在脑后。";
+                if (playRand < 0.20) {
+                    state.stress -= 10;
+                    state.knowledge -= k(4);
+                    msg = "你一回家就打开电脑，难得连赢几局，确实爽了一把。但等你关机时，作业和复习已经被完整地留给了明天的自己。";
                 } else if (playRand < 0.70) {
-                    state.stress -= 8;
-                    state.knowledge -= 3;
-                    msg = "你打了一会儿游戏，心情确实轻松了不少。不过等你关机时，发现书包还原封不动地躺在旁边。";
+                    state.stress -= 5;
+                    state.knowledge -= k(3);
+                    msg = "你打了一会儿游戏，心情稍微轻松了点。不过快乐来得快去得也快，书包还原封不动地躺在旁边。";
                 } else {
-                    state.stress += 8;
-                    state.knowledge -= 4;
+                    state.stress += 7;
+                    state.knowledge -= k(4);
                     state.teacherFavor -= 3;
                     msg = "你本来只想打一小会儿，结果越打越上头。家长推门进来时，你的作业还一个字没动。第二天，驴老师也因为作业问题点名批评了你。";
                 }
@@ -1637,7 +1769,7 @@
             case 'layflat':
                 if (Math.random() < 0.5) {
                     state.stress -= 30;
-                    state.knowledge -= 5;
+                    state.knowledge -= k(5);
                     msg = "你躺平了一个月，发现原来就算在新华初，只要把眼睛合起来也能这么舒服。";
                 } else {
                     state.stress += 20;
@@ -1646,19 +1778,19 @@
                 }
                 break;
             case 'summer_study':
-                state.knowledge += 15;
+                state.knowledge += knowledgeGain(10);
                 state.stress += 10;
                 msg = "一个暑假的补习班让你收获颇丰，但也疲惫不堪。";
                 break;
             case 'travel':
                 state.stress -= 20;
                 state.social += 10;
-                state.knowledge += 2;
+                state.knowledge += knowledgeGain(2);
                 msg = "你和家人/朋友进行了一次愉快的旅行，见识大涨，身心舒畅。";
                 break;
             case 'summer_play':
                 state.stress -= 20;
-                state.knowledge -= 5;
+                state.knowledge -= k(5);
                 msg = "空调、西瓜、WiFi... 你在家舒舒服服地躺了一个月。";
                 break;
             case 'hobby':
@@ -1668,7 +1800,7 @@
                 msg = "你利用暑假发展了你的兴趣爱好，在开学后惊艳了同学和老师。";
                 break;
             case 'winter_study':
-                state.knowledge += 10;
+                state.knowledge += knowledgeGain(7);
                 state.stress += 8;
                 msg = "你花了一周时间赶完了寒假作业。";
                 break;
@@ -1683,7 +1815,7 @@
                 msg = "过年了，你和小伙伴们一起放烟花，不亦乐乎。";
                 break;
             case 'review':
-                state.knowledge += 5;
+                state.knowledge += knowledgeGain(4);
                 state.teacherFavor += 2;
                 msg = "你利用寒假预习了下学期的课程，感觉新学期会轻松不少。";
                 break;
@@ -1711,17 +1843,17 @@
         if (!state.isSummerVacation && !state.isWinterVacation) {
             let bonusMsg = "";
             let bonusFavor = 0;
-            if (state.knowledge >= 90) {
+            if (getKnowledgeRate() >= 0.90) {
                 if (Math.random() < 0.50) {
                     bonusFavor = 5;
                     bonusMsg = "你的成绩优异，许多老师都对你赞赏有加。";
                 }
-            } else if (state.knowledge >= 80) {
+            } else if (getKnowledgeRate() >= 0.80) {
                 if (Math.random() < 0.30) {
                     bonusFavor = 5;
                     bonusMsg = "你的成绩优异，许多老师都对你赞赏有加。";
                 }
-            } else if (state.knowledge >= 70) {
+            } else if (getKnowledgeRate() >= 0.70) {
                 if (Math.random() < 0.30) {
                     bonusFavor = 3;
                     bonusMsg = "最近你的成绩稳定，老师对你较为满意。";
@@ -1830,7 +1962,7 @@
 
             // 假期中不触发特定事件
             if (state.isSummerVacation || state.isWinterVacation) {
-                const vacationIncompatibleEvents = ["数学卷子的签名", "体育课的自由活动"];
+                const vacationIncompatibleEvents = ["数学卷子的签名", "体育课的自由活动", "五角星的奥数课"];
                 availableEvents = availableEvents.filter(e => !vacationIncompatibleEvents.includes(e.title));
             }
             
@@ -1861,35 +1993,46 @@
             desc = "驴老师认为你在这个班里完全是影响其他同学，说服你的家长带你转学了。";
             achKey = "end_teacher";
         } else {
+            const score = Math.floor(state.knowledge);
             let school = "普通高中";
-            if (state.knowledge >= 85) school = "顶级市重点高中";
-            else if (state.knowledge >= 70) school = "市重点高中";
-            else if (state.knowledge >= 50) school = "区重点中学";
-            else school = "普通高中";
+
+            // 毕业升学按初三 630 分制的现实分数线判断，而不是单纯按百分比。
+            // 这样 600+ 才是顶级，580+ 是市重点，550+ 是区重点，500+ 是普高线附近。
+            if (score >= 600) {
+                school = "顶级市重点高中";
+            } else if (score >= 580) {
+                school = "市重点高中";
+            } else if (score >= 550) {
+                school = "区重点高中";
+            } else if (score >= 500) {
+                school = "普通高中";
+            } else {
+                school = "普通高中边缘";
+            }
             
-            if (state.knowledge >= 80 && state.social >= 60) {
+            if (score >= 580 && state.social >= 65) {
                 title = "六边形战士";
-                desc = `你不仅以优异的成绩考入了【${school}】，还是班级里的人气王，连严厉的驴老师都对你赞不绝口。你拥有一个完美的新华初生涯！`;
+                desc = `你以接近顶尖的成绩考入了【${school}】，同时还是班级里的人气王。学习、朋友、老师评价，你几乎都没有落下。新华初的四年，被你打出了近乎完美的路线。`;
                 achKey = "end_grad_1";
-            } else if (state.knowledge >= 80 && state.social < 40) {
+            } else if (score >= 580 && state.social < 40) {
                 title = "虹口做题家";
-                desc = `你靠着夜以继日的努力考入了【${school}】，但代价是几乎没有留下什么朋友。毕业那天，看着别人合影留念，你默默背着书包独自离开了校园……`;
+                desc = `你靠着夜以继日的努力考入了【${school}】。只是这一路上，你把太多时间留给了卷子和错题本。毕业那天，看着别人合影留念，你默默背着书包独自离开了校园……`;
                 achKey = "end_grad_2";
-            } else if (state.knowledge >= 75) {
+            } else if (score >= 570) {
                 title = "学霸本霸";
-                desc = `你稳扎稳打，以优异的成绩考入了【${school}】。虽然你的初中生涯没有太多波澜壮阔的传奇，但这份耀眼的录取通知书证明了你所有的汗水。`;
+                desc = `你稳扎稳打，最终以相当优秀的成绩考入了【${school}】。虽然你的初中生涯没有太多波澜壮阔的传奇，但这份录取结果证明了你所有的汗水。`;
                 achKey = "end_grad_3";
             } else if (state.social >= 70) {
                 title = "朋友成群";
-                desc = `虽然你只考入了一所【${school}】，但在新华初的四年里你收获了最可贵的友谊。毕业时，兄弟姐妹们拉着你拍了无数张合影，进了高中后大家也依然打成一片，青春没有遗憾！`;
+                desc = `你最终考入了【${school}】。成绩或许不是最耀眼的，但在新华初的四年里，你收获了最可贵的友谊。毕业时，朋友们拉着你拍了无数张合影，青春没有遗憾。`;
                 achKey = "end_grad_4";
             } else if (state.teacherFavor >= 80) {
                 title = "驴老师的爱徒";
                 desc = `你最终考入了【${school}】。成绩或许不是最顶尖的，但你极其对驴老师的胃口。毕业典礼上，平时不苟言笑的他特意拉着你单独嘱咐了很久，你成了他难忘的学生。`;
                 achKey = "end_grad_5";
-            } else if (state.knowledge < 40 && state.teacherFavor < 40) {
+            } else if (score < 500 && state.teacherFavor < 40) {
                 title = "混世魔王";
-                desc = `你的成绩在及格线边缘徘徊，驴老师看到你就头疼。虽然最后勉强混到了【${school}】，但这四年的主要成就大概就是“没被劝退”了。`;
+                desc = `你的成绩长期在危险线附近徘徊，驴老师看到你就头疼。虽然最后勉强摸到了【${school}】，但这四年的主要成就大概就是“没被劝退”了。`;
                 achKey = "end_grad_6";
             } else {
                 title = "泯然众人";

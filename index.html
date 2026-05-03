@@ -255,7 +255,7 @@
     <h1>新华初模拟器</h1>
     <button onclick="startGame()">开始游戏</button>
     <button onclick="showAchievements()" style="margin-top: 15px; background: #95a5a6; padding: 10px 30px; font-size: 1rem;">🏆 结局成就</button>
-    <div class="version-label">v0.378</div>
+    <div class="version-label">v0.379</div>
 </div>
 
 <div id="achievements-screen">
@@ -389,7 +389,10 @@
         purchasedShopItemIds: {},
         hasBeenVeryLowKnowledge: false,
         maxStressEver: 0,
-        pendingHiddenAchievements: []
+        pendingHiddenAchievements: [],
+        lugouqiaoMonth: null,
+        lugouqiaoDone: false,
+        knowledgeCapNotified: {}
     };
 
     const months = ["8月", "9月", "10月", "11月", "12月", "1月", "2月", "3月", "4月", "5月", "6月", "7月"];
@@ -408,6 +411,20 @@
 
     function getKnowledgeMax() {
         return knowledgeMaxByGrade[getCurrentGradeIndex()];
+    }
+
+    function notifyKnowledgeCapForNewSchoolYear() {
+        const m = state.monthIndex % 12;
+        if (m !== 1) return; // 9月才是新学年正式开始
+        if (state.knowledgeCapNotified[state.monthIndex]) return;
+        state.knowledgeCapNotified[state.monthIndex] = true;
+
+        const gradeName = grades[getCurrentGradeIndex()];
+        const max = getKnowledgeMax();
+        const msg = state.monthIndex === 1
+            ? `【新学年】${gradeName}正式开始。本学年学习内容上限为 ${max} 分，新华初的知识量开始变得具体起来。`
+            : `【新学年】${gradeName}正式开始。课程难度和知识总量上升，本学年知识上限提高到 ${max} 分。`;
+        addLog(msg);
     }
 
     function getKnowledgeRate() {
@@ -504,7 +521,7 @@
         { id: "autoPencil", name: "进口自动铅笔", price: 30, desc: "握起来很顺手的进口自动铅笔，写起证明题时都多了几分优等生气质。整局限购一次。", effect: { knowledge: 1.5, teacherFavor: 3 }, unique: true },
         { id: "deskLamp", name: "护眼台灯", price: 45, desc: "晚上写作业没那么刺眼了，熬夜复习也稍微舒服一点。整局限购一次。", effect: { knowledge: 2, stress: -3 }, unique: true },
         { id: "referenceBook", name: "压轴题参考书", price: 60, desc: "厚得像砖头，但里面确实藏着提高分数的套路。越到高分段越难靠它突飞猛进。整局限购一次。", effect: { knowledge: 4, stress: 6 }, unique: true },
-        { id: "cpBadge", name: "漫展纪念徽章", price: 35, desc: "从上海CP漫展带回来的小徽章，别在书包上时总有人会多看两眼。整局限购一次。", effect: { social: 5, stress: -4 }, unique: true },
+        { id: "cpBadge", name: "动漫徽章", price: 35, desc: "小小的动漫徽章，别在书包上时总有人会多看两眼。整局限购一次。", effect: { social: 5, stress: -4 }, unique: true },
         { id: "secretDiary", name: "秘密交换日记", price: 40, desc: "只属于你们两个人的小本子，写下平时不敢说出口的话。恋爱线开启后出现，整局限购一次。", effect: { romanceAffection: 8, stress: -2 }, unique: true, condition: (s) => s.romance.met && !s.romance.ended }
     ];
 
@@ -519,7 +536,7 @@
         { id: "end_grad_7", title: "泯然众人", desc: "平平淡淡地度过了初中四年" },
         { id: "end_stress", title: "不幸退学", desc: "因为压力达到100而退学" },
         { id: "end_knowledge", title: "成绩垫底", desc: "因为知识跌破0被劝退" },
-        { id: "end_teacher", title: "被迫转学", desc: "因为驴老师好感归零而转学" },
+        { id: "end_teacher", title: "劝退", desc: "因为驴老师好感归零而被劝退" },
         { id: "romance_sweet", title: "青春恋爱喜剧", desc: "有恋人且关系非常稳定地毕业" },
         { id: "romance_normal", title: "普通但珍贵的初恋", desc: "和恋人一起走到毕业" },
         { id: "romance_faded", title: "夏天结束以后", desc: "恋爱关系在毕业时变得勉强" },
@@ -748,6 +765,7 @@
         },
         {
             title: "“大祭司”的奇妙仪式",
+            condition: (s) => s.monthIndex < 30,
             desc: "放学路上，你看到班被称为“大祭司”的同学正蹲在学校旁边的花坛角落里，神神叨叨地用打火机点燃树叶和废纸玩火……",
             choices: [
                 { txt: "凑过去一起“作法”", effect: { social: 5, stress: -10 }, res: "看着火苗一点点燃起，你感到一种诡异的解压感。", 
@@ -825,7 +843,12 @@
                 {
                     txt: "咬牙坚持跑完全程",
                     effect: { stress: 8, teacherFavor: 3, social: 2 },
-                    res: "你跑到最后几乎只能听见自己的喘气声，但还是撑到了终点。肘老师点了点头，旁边同学也给你鼓掌。"
+                    res: "你跑到最后几乎只能听见自己的喘气声，但还是撑到了终点。肘老师点了点头，旁边同学也给你鼓掌。",
+                    chance: {
+                        prob: 0.97,
+                        failEffect: { stress: 14, social: -2 },
+                        failRes: "你本来已经快撑到终点，旁边同学却突然咳得停不下来，最后扶着膝盖当场呕吐。那股酸味和操场的热气混在一起，你也没忍住跟着吐了出来。体测现场一片混乱，你的压力直接拉满。"
+                    }
                 },
                 {
                     txt: "前半段慢跑，后半段摆烂",
@@ -908,7 +931,8 @@
         },
         {
             title: "萨莉亚的作业互助会",
-            desc: "放学后，几个同学神神秘秘地凑过来，邀请你一起去附近的萨莉亚。名义上是吃点东西放松一下，实际上大家都心知肚明——今晚的作业太难了，不抱团根本写不完。你看着书包里那叠卷子，又想起萨莉亚明亮的灯和便宜的饮料吧，内心开始动摇。",
+            condition: () => state.monthIndex >= 31,
+            desc: "初二寒假之后，作业难度明显上了一个台阶。放学后，几个同学神神秘秘地凑过来，邀请你一起去附近的萨莉亚。名义上是吃点东西放松一下，实际上大家都心知肚明——今晚的作业太难了，不抱团根本写不完。你看着书包里那叠卷子，又想起萨莉亚明亮的灯和便宜的饮料吧，内心开始动摇。",
             choices: [
                 {
                     txt: "一起去，边吃边认真讨论作业",
@@ -1069,7 +1093,7 @@
             {
                 key: 'teacher_low',
                 active: state.teacherFavor >= 0 && state.teacherFavor <= 10,
-                msg: '⚠️【危险预警】驴老师对你的好感已经接近归零，再惹他不满，就可能被迫转学。'
+                msg: '⚠️【危险预警】驴老师对你的好感已经接近归零，再惹他不满，就可能被劝退。'
             },
             {
                 key: 'stress_high',
@@ -1137,6 +1161,11 @@
         }
         applyRomanceUpdate(finalRomanceUpdate);
         if (resolved.unlockAchievement) unlockAchievement(resolved.unlockAchievement);
+
+        if (ev.title === "“大祭司”的奇妙仪式" && rawChoice.txt && rawChoice.txt.includes("凑过去")) {
+            state.lugouqiaoMonth = state.monthIndex + 12;
+            state.lugouqiaoDone = false;
+        }
 
         let effectHtml = effectStr.length > 0 ? `<br><br><span style="color:var(--primary); font-weight:bold;">${effectStr.join(', ')}</span>` : "";
 
@@ -1691,19 +1720,11 @@
             if (!ev) return false;
             if (ev.condition && !ev.condition()) return false;
         } else if (state.romance.dating) {
+            // 正式恋爱后，普通恋爱日常不再单独高概率触发，改为和普通随机事件放进同一个池子。
+            // 这里只保留恋爱风险节点，避免恋爱事件频率过高。
             const riskEv = maybeTriggerDatingRiskMilestone();
-            if (riskEv) {
-                ev = riskEv;
-            } else {
-                if (Math.random() >= 0.60) return false;
-                let pool = datingEvents.filter(e => !e.condition || e.condition());
-                const recent = state.romance.recentDatingEvents || [];
-                let filtered = pool.filter(e => !recent.includes(e.title));
-                if (filtered.length === 0) filtered = pool;
-                if (filtered.length === 0) return false;
-                ev = filtered[Math.floor(Math.random() * filtered.length)];
-                state.romance.recentDatingEvents = [...recent, ev.title].slice(-3);
-            }
+            if (!riskEv) return false;
+            ev = riskEv;
         } else {
             return false;
         }
@@ -1899,6 +1920,9 @@
         state.hasBeenVeryLowKnowledge = false;
         state.maxStressEver = 0;
         state.pendingHiddenAchievements = [];
+        state.lugouqiaoMonth = null;
+        state.lugouqiaoDone = false;
+        state.knowledgeCapNotified = {};
         resetRomance();
         state.warningFlags = {};
         state.monthIndex = 0;
@@ -1953,6 +1977,7 @@
         } else if (state.monthIndex === 0) {
             state.monthIndex = 1; // 结束军训进入9月
             addLog("军训结束了，正式的初中课程开始了。");
+            notifyKnowledgeCapForNewSchoolYear();
             updateUI();
         }
     }
@@ -2002,6 +2027,32 @@
             const ev = militaryQueue.shift();
             openModal(ev);
         }
+    }
+
+    function maybeTriggerLugouqiaoEvent() {
+        if (state.lugouqiaoDone || state.lugouqiaoMonth === null) return false;
+        if (state.monthIndex < state.lugouqiaoMonth) return false;
+        state.lugouqiaoDone = true;
+        state.inEvent = true;
+        setTimeout(() => {
+            openModal({
+                title: "卢沟桥事件",
+                desc: "距离那次“大祭司”的奇妙仪式已经过去了一年。放学后，大祭司忽然从楼梯拐角的阴影里探出头，压低声音问你：“今天要不要去看卢沟桥？”\n\n他语气庄重得像在宣布某种古老预言，眼神里还带着一点不该属于初中生的神秘。你完全不知道他在说什么，只觉得事情大概不会正常。",
+                choices: [
+                    {
+                        txt: "还是算了，我不想知道",
+                        effect: { stress: -1 },
+                        res: "你选择远离这个谜团。大祭司点点头，没有强求，只留下一句：“错过的人，不会知道桥的另一边有什么。”你总觉得自己似乎错过了什么，但生活至少暂时保持了正常。"
+                    },
+                    {
+                        txt: "跟他去看看所谓的“卢沟桥”",
+                        effect: { knowledge: 1, stress: 8 },
+                        res: "大祭司带着你一路绕到厕所附近，神情肃穆得仿佛在进行田野考察。然后他指向厕所沟里一坨极其壮观、横跨沟槽两岸的巨大排泄物，郑重宣布：“看，卢沟桥。”你沉默了很久。那一刻，你对人类想象力、校园传说和命名学都有了全新的理解，但精神也受到了不小的冲击。"
+                    }
+                ]
+            });
+        }, 500);
+        return true;
     }
 
     function handleAction(type) {
@@ -2226,6 +2277,7 @@
             addLog("【开学】暑假结束了，新学期开始了。");
             state.isSummerVacation = false;
             updateActionButtons();
+            notifyKnowledgeCapForNewSchoolYear();
         } else if (m === 6 && !state.isWinterVacation) { // February
             addLog("【寒假】1月结束了，愉快的寒假到来了！");
             state.isWinterVacation = true;
@@ -2289,25 +2341,49 @@
             return;
         }
 
+        // 大祭司后续固定事件：如果当年陪他一起“作法”，第二年同月必定触发“卢沟桥事件”。
+        if (maybeTriggerLugouqiaoEvent()) {
+            return;
+        }
+
         // 恋爱线随机特别剧情优先于普通随机事件
         if (maybeTriggerRomanceRandomEvent()) {
             return;
         }
 
-        // 随机事件判定：第一个月（执行完进入10月前，此时 monthIndex 为 2）不触发
-        if (state.monthIndex > 2 && Math.random() < 0.25) {
-            // 过滤出未触发过的事件
-            let availableEvents = randomEvents.filter(e => !state.eventCounts[e.title] && (!e.condition || e.condition(state)));
+        // 随机事件判定：第一个月（执行完进入10月前，此时 monthIndex 为 2）不触发。
+        // 正式恋爱后，恋爱日常事件和普通随机事件放进同一个池子，整体概率略高，但不会再单独 60% 高频触发。
+        const randomEventChance = (state.romance.dating && !state.romance.ended) ? 0.35 : 0.25;
+        if (state.monthIndex > 2 && Math.random() < randomEventChance) {
+            // 过滤出未触发过的普通事件
+            let availableEvents = randomEvents
+                .filter(e => !state.eventCounts[e.title] && (!e.condition || e.condition(state)))
+                .map(e => ({ event: e, type: 'normal' }));
 
             // 假期中不触发特定事件
             if (state.isSummerVacation || state.isWinterVacation) {
-                const vacationIncompatibleEvents = ["数学卷子的签名", "体育课的自由活动", "五角星的奥数课"];
-                availableEvents = availableEvents.filter(e => !vacationIncompatibleEvents.includes(e.title));
+                const vacationIncompatibleEvents = ["数学卷子的签名", "体育课的自由活动", "五角星的奥数课", "萨莉亚的作业互助会"];
+                availableEvents = availableEvents.filter(item => !vacationIncompatibleEvents.includes(item.event.title));
+            }
+
+            // 恋爱中：把恋爱日常也加入同一随机池。最近 3 个恋爱事件不重复。
+            if (state.romance.dating && !state.romance.ended && state.romance.lastEventMonth !== state.monthIndex) {
+                const recent = state.romance.recentDatingEvents || [];
+                let datingPool = datingEvents.filter(e => (!e.condition || e.condition()) && !recent.includes(e.title));
+                if (datingPool.length === 0) datingPool = datingEvents.filter(e => !e.condition || e.condition());
+                availableEvents = availableEvents.concat(datingPool.map(e => ({ event: e, type: 'dating' })));
             }
             
             if (availableEvents.length > 0) {
-                const ev = availableEvents[Math.floor(Math.random() * availableEvents.length)];
-                state.eventCounts[ev.title] = (state.eventCounts[ev.title] || 0) + 1; // 记录该事件的触发次数
+                const picked = availableEvents[Math.floor(Math.random() * availableEvents.length)];
+                const ev = picked.event;
+                if (picked.type === 'normal') {
+                    state.eventCounts[ev.title] = (state.eventCounts[ev.title] || 0) + 1; // 记录该事件的触发次数
+                } else if (picked.type === 'dating') {
+                    const recent = state.romance.recentDatingEvents || [];
+                    state.romance.recentDatingEvents = [...recent, ev.title].slice(-3);
+                    state.romance.lastEventMonth = state.monthIndex;
+                }
                 state.inEvent = true; // 立即锁定UI状态，防止500ms内玩家狂点按钮导致错乱
                 setTimeout(() => openModal(ev), 500);
             }
@@ -2328,8 +2404,8 @@
             desc = "由于长时间荒废学业，你的知识水平跌破底线，最终被学校劝退。初中生涯提前结束了。";
             achKey = "end_knowledge";
         } else if (type === "teacher") {
-            title = "被迫转学";
-            desc = "驴老师认为你在这个班里完全是影响其他同学，说服你的家长带你转学了。";
+            title = "劝退";
+            desc = "驴老师认为你在这个班里完全是在影响其他同学，最终说服你的家长让你离开这个班。";
             achKey = "end_teacher";
         } else {
             const score = Math.floor(state.knowledge);

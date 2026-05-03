@@ -37,10 +37,17 @@
             box-shadow: 0 20px 40px rgba(0,0,0,0.1);
             text-align: center; padding: 20px;
             border-radius: var(--radius);
+            position: relative;
         }
         #main-menu h1 { color: var(--primary); margin-bottom: 10px; font-size: 2.2rem; letter-spacing: -0.5px; }
         #main-menu small { color: #64748b; font-size: 1.1rem; font-weight: 500; }
         #main-menu button { margin-top: 20px; width: 80%; font-size: 1.1rem; padding: 16px; border-radius: var(--radius); box-shadow: 0 8px 20px rgba(99, 102, 241, 0.25); }
+
+        .version-label {
+            position: absolute; bottom: 16px; left: 0; right: 0;
+            text-align: center; color: #94a3b8; font-size: 0.78rem;
+            font-weight: 600; letter-spacing: 0.5px; user-select: none;
+        }
 
         /* 成就界面 */
         #achievements-screen {
@@ -227,6 +234,7 @@
     <h1>新华初模拟器</h1>
     <button onclick="startGame()">开始游戏</button>
     <button onclick="showAchievements()" style="margin-top: 15px; background: #95a5a6; padding: 10px 30px; font-size: 1rem;">🏆 结局成就</button>
+    <div class="version-label">v0.375</div>
 </div>
 
 <div id="achievements-screen">
@@ -411,11 +419,20 @@
         return Math.max(1, Math.round(base * multiplier));
     }
 
+
+    // 压力增加柔化：所有正向压力增加统一乘以 0.85；减压不受影响。
+    function stressGain(value) {
+        return Math.max(1, Math.round(value * 0.85));
+    }
+
     function scaleEffectValue(key, val) {
-        if (key !== 'knowledge') return val;
-        if (val > 0) return knowledgeGain(val);
-        if (val < 0) return -k(Math.abs(val));
-        return 0;
+        if (key === 'knowledge') {
+            if (val > 0) return knowledgeGain(val);
+            if (val < 0) return -k(Math.abs(val));
+            return 0;
+        }
+        if (key === 'stress' && val > 0) return stressGain(val);
+        return val;
     }
 
     function applyEffectValue(key, val) {
@@ -1719,18 +1736,18 @@
                 
                 if (rand < failProb) {
                     // 学不进去
-                    state.stress += 12;
+                    state.stress += stressGain(12);
                     msg = "学不进去，心烦意乱，对着书本发呆半天，知识毫无长进，压力反而增加了。";
                 } else if (rand < failProb + 0.10) {
                     // 忘我境界 (固定的10%概率)
                     state.knowledge += knowledgeGain(7);
-                    state.stress += 4;
+                    state.stress += stressGain(4);
                     state.social -= 2;
                     msg = "你进入了忘我的境界，学习效率奇高，不仅没觉得太累，还掌握了大量知识！";
                 } else {
                     // 普普通通
                     state.knowledge += knowledgeGain(4);
-                    state.stress += 8;
+                    state.stress += stressGain(8);
                     state.social -= 2;
                     msg = "你一头扎进作业里，知识点增加了，但头有点晕。";
                 }
@@ -1757,7 +1774,7 @@
                     msg = "你放学后和朋友一起聊天、买零食、散步，心情轻松了不少。";
                 } else {
                     state.social += 3;
-                    state.stress += 5;
+                    state.stress += stressGain(5);
                     state.knowledge -= k(2);
                     state.teacherFavor -= 2;
                     msg = "你和朋友玩得有点过头，回家太晚，还被驴老师知道了。虽然关系更熟了，但麻烦也来了。";
@@ -1775,7 +1792,7 @@
                     state.knowledge -= k(3);
                     msg = "你打了一会儿游戏，心情稍微轻松了点。不过快乐来得快去得也快，书包还原封不动地躺在旁边。";
                 } else {
-                    state.stress += 7;
+                    state.stress += stressGain(7);
                     state.knowledge -= k(4);
                     state.teacherFavor -= 3;
                     msg = "你本来只想打一小会儿，结果越打越上头。家长推门进来时，你的作业还一个字没动。第二天，驴老师也因为作业问题点名批评了你。";
@@ -1787,14 +1804,14 @@
                     state.knowledge -= k(5);
                     msg = "你躺平了一个月，发现原来就算在新华初，只要把眼睛合起来也能这么舒服。";
                 } else {
-                    state.stress += 20;
+                    state.stress += stressGain(20);
                     state.teacherFavor -= 5;
                     msg = "你虽然想着躺平，但是驴老师发现了你学习态度不端正，联系了你的家长。";
                 }
                 break;
             case 'summer_study':
                 state.knowledge += knowledgeGain(10);
-                state.stress += 10;
+                state.stress += stressGain(10);
                 msg = "一个暑假的补习班让你收获颇丰，但也疲惫不堪。";
                 break;
             case 'travel':
@@ -1816,7 +1833,7 @@
                 break;
             case 'winter_study':
                 state.knowledge += knowledgeGain(7);
-                state.stress += 8;
+                state.stress += stressGain(8);
                 msg = "你花了一周时间赶完了寒假作业。";
                 break;
             case 'visit_relatives':
@@ -2052,7 +2069,7 @@
                 desc = `你最终考入了【${school}】。成绩或许不是最顶尖的，但你极其对驴老师的胃口。毕业典礼上，平时不苟言笑的他特意拉着你单独嘱咐了很久，你成了他难忘的学生。`;
                 achKey = "end_grad_5";
             } else if (score < 500 && state.teacherFavor < 40) {
-                title = "混世魔王";
+                title = "混世魔丸";
                 desc = `你的成绩长期在危险线附近徘徊，驴老师看到你就头疼。虽然最后勉强摸到了【${school}】，但这四年的主要成就大概就是“没被劝退”了。`;
                 achKey = "end_grad_6";
             } else {

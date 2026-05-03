@@ -385,21 +385,27 @@
         return Math.round(getKnowledgeMax() * percent / 100);
     }
 
-    // 知识增长衰减：越接近中考高分段，继续提分越难。
-    // 只对“知识增加”生效；知识减少不衰减，避免高分玩家无成本试错。
+    // 知识增长衰减：越接近中考高分段，继续提分越难；
+    // 同时加入低分追赶机制：低于当前学年 60% 时，知识增加 ×1.2。
+    // 只对“知识增加”生效；知识减少仍按基础比例扣除。
     function knowledgeGain(percent) {
         const base = k(percent);
         const score = state.knowledge;
+        const rate = getKnowledgeRate();
         let multiplier = 1;
 
         if (score >= 600) {
-            multiplier = 0.20;
+            multiplier *= 0.12;
         } else if (score >= 580) {
-            multiplier = 0.35;
+            multiplier *= 0.20;
         } else if (score >= 550) {
-            multiplier = 0.55;
+            multiplier *= 0.55;
         } else if (score >= 500) {
-            multiplier = 0.75;
+            multiplier *= 0.75;
+        }
+
+        if (rate < 0.60) {
+            multiplier *= 1.20;
         }
 
         return Math.max(1, Math.round(base * multiplier));
@@ -444,18 +450,18 @@
     const shopItems = [
         // 普通道具：每回合限购 1 件，但整局可重复购买
         { id: "latiao", name: "辣条", price: 2, desc: "经久不衰的小零食，撕开包装就是校门口的味道。", effect: { stress: -1 } },
-        { id: "milktea", name: "珍珠奶茶", price: 8, desc: "放学后偷偷来一杯，糖分能暂时拯救被作业掏空的灵魂。", effect: { stress: -5 } },
+        { id: "milktea", name: "珍珠奶茶", price: 8, desc: "放学后偷偷来一杯，糖分能短暂拯救被作业掏空的灵魂，但也不能靠它解决所有压力。", effect: { stress: -3 } },
         { id: "basketballSticker", name: "篮球明星贴纸", price: 12, desc: "贴在课桌角落的小小暗号，懂球的同学会主动和你搭话。", effect: { social: 3, stress: -2 } },
         { id: "pencilcase", name: "流行笔盒", price: 16, desc: "最近班里很流行的款式，你的好朋友也很喜欢。", effect: { social: 4 } },
-        { id: "highlighter", name: "彩色荧光笔套装", price: 18, desc: "重点、难点、易错点一眼分明，复习时不会再被一整页黑字淹没。", effect: { knowledge: 2 } },
+        { id: "highlighter", name: "彩色荧光笔套装", price: 20, desc: "重点、难点、易错点一眼分明，复习时不会再被一整页黑字淹没。", effect: { knowledge: 1.5 } },
 
         // 特殊道具：整局限购 1 次，用来避免后期无限堆数值
-        { id: "looseleaf", name: "高效活页本", price: 30, desc: "日本公司推出的活页版本，整理错题和课堂笔记都更方便。整局限购一次。", effect: { knowledge: 4, stress: 1 }, unique: true },
-        { id: "autoPencil", name: "进口自动铅笔", price: 25, desc: "握起来很顺手的进口自动铅笔，写起证明题时都多了几分优等生气质。整局限购一次。", effect: { knowledge: 2, teacherFavor: 3 }, unique: true },
-        { id: "deskLamp", name: "护眼台灯", price: 40, desc: "晚上写作业没那么刺眼了，熬夜复习也稍微舒服一点。整局限购一次。", effect: { knowledge: 3, stress: -4 }, unique: true },
-        { id: "referenceBook", name: "压轴题参考书", price: 45, desc: "厚得像砖头，但里面确实藏着提高分数的套路。整局限购一次。", effect: { knowledge: 6, stress: 5 }, unique: true },
-        { id: "cpBadge", name: "漫展纪念徽章", price: 30, desc: "从上海CP漫展带回来的小徽章，别在书包上时总有人会多看两眼。整局限购一次。", effect: { social: 6, stress: -5 }, unique: true },
-        { id: "secretDiary", name: "秘密交换日记", price: 35, desc: "只属于你们两个人的小本子，写下平时不敢说出口的话。恋爱线开启后出现，整局限购一次。", effect: { romanceAffection: 10, stress: -3 }, unique: true, condition: (s) => s.romance.met && !s.romance.ended }
+        { id: "looseleaf", name: "高效活页本", price: 35, desc: "日本公司推出的活页版本，整理错题和课堂笔记都更方便。整局限购一次。", effect: { knowledge: 3, stress: 1 }, unique: true },
+        { id: "autoPencil", name: "进口自动铅笔", price: 30, desc: "握起来很顺手的进口自动铅笔，写起证明题时都多了几分优等生气质。整局限购一次。", effect: { knowledge: 1.5, teacherFavor: 3 }, unique: true },
+        { id: "deskLamp", name: "护眼台灯", price: 45, desc: "晚上写作业没那么刺眼了，熬夜复习也稍微舒服一点。整局限购一次。", effect: { knowledge: 2, stress: -3 }, unique: true },
+        { id: "referenceBook", name: "压轴题参考书", price: 60, desc: "厚得像砖头，但里面确实藏着提高分数的套路。越到高分段越难靠它突飞猛进。整局限购一次。", effect: { knowledge: 4, stress: 6 }, unique: true },
+        { id: "cpBadge", name: "漫展纪念徽章", price: 35, desc: "从上海CP漫展带回来的小徽章，别在书包上时总有人会多看两眼。整局限购一次。", effect: { social: 5, stress: -4 }, unique: true },
+        { id: "secretDiary", name: "秘密交换日记", price: 40, desc: "只属于你们两个人的小本子，写下平时不敢说出口的话。恋爱线开启后出现，整局限购一次。", effect: { romanceAffection: 8, stress: -2 }, unique: true, condition: (s) => s.romance.met && !s.romance.ended }
     ];
 
     // --- 成就系统 ---
@@ -1352,7 +1358,7 @@
     }
 
     function maybeTriggerRomanceFixedEvent() {
-        if (state.monthIndex === 19 && !state.romance.met && !state.romance.ended && state.social > 50 && getKnowledgeRate() > 0.50) {
+        if (state.monthIndex === 19 && !state.romance.met && !state.romance.ended && state.social >= 60 && getKnowledgeRate() >= 0.60) {
             state.inEvent = true;
             setTimeout(() => triggerSpringOuting(), 500);
             return true;

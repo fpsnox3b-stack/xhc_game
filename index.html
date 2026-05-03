@@ -251,6 +251,9 @@
         }
         .shop-header-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
         .shop-money { color: #92400e; background: #fef3c7; border: 1px solid #fde68a; border-radius: 999px; padding: 6px 10px; font-weight: 800; font-size: 0.9rem; }
+        .shop-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .shop-top-close-btn { padding: 7px 10px; border-radius: 999px; font-size: 0.85rem; background: #94a3b8; color: #fff; box-shadow: none; }
+        .shop-top-close-btn:hover { background: #64748b; transform: translateY(-1px); box-shadow: 0 3px 8px rgba(100,116,139,0.22); }
         .shop-tip { color: #64748b; font-size: 0.85rem; line-height: 1.5; margin-bottom: 14px; }
         .shop-list { display: flex; flex-direction: column; gap: 10px; }
         .shop-item {
@@ -263,7 +266,7 @@
         .shop-buy-btn { padding: 10px 12px; font-size: 0.85rem; border-radius: 12px; min-width: 74px; }
         .shop-close-btn { width: 100%; margin-top: 14px; background: #94a3b8; }
         .shop-close-btn:hover { background: #64748b; }
-        #shop-result { margin-top: 12px; display: none; }
+        #shop-result { margin: 0 0 12px; display: none; }
     </style>
 </head>
 <body>
@@ -272,7 +275,7 @@
     <h1>新华初模拟器</h1>
     <button onclick="startGame()">开始游戏</button>
     <button onclick="showAchievements()" style="margin-top: 15px; background: #95a5a6; padding: 10px 30px; font-size: 1rem;">🏆 结局成就</button>
-    <div class="version-label">v0.381</div>
+    <div class="version-label">v0.383</div>
 </div>
 
 <div id="achievements-screen">
@@ -333,11 +336,14 @@
         <div id="shop-content">
             <div class="shop-header-row">
                 <div class="modal-title" style="margin-bottom:0; text-align:left;">校门口小商店</div>
-                <div class="shop-money">💰 <span id="shop-money">0</span></div>
+                <div class="shop-header-actions">
+                    <button class="shop-top-close-btn" onclick="closeShop()">退出</button>
+                    <div class="shop-money">💰 <span id="shop-money">0</span></div>
+                </div>
             </div>
             <div class="shop-tip">第一次寒假结束、进入 3 月后，家长会开始按月发零花钱。每个回合只能购买 1 件物品；标有“限购”的特殊道具整局只能买 1 次。</div>
-            <div class="shop-list" id="shop-list"></div>
             <div id="shop-result" class="result-box"></div>
+            <div class="shop-list" id="shop-list"></div>
             <button class="shop-close-btn" onclick="closeShop()">离开商店</button>
         </div>
     </div>
@@ -1036,33 +1042,33 @@
         },
         {
             title: "老虚叫板驴老师",
-            desc: "同学老虚一直很有个性。今天课堂上，驴老师刚批评完全班作业质量，老虚突然抬头说：“可是这题本来就讲得不清楚吧？”教室瞬间安静下来，所有人都屏住呼吸。",
+            desc: "同学老虚一直很有个性。今天课堂上，驴老师刚批评完班级纪律，结果下午老虚在课堂上吃苹果就被驴老师发现并拍照取证。老虚没有发现驴老师。",
             choices: [
                 {
-                    txt: "低头装作什么都没听见",
-                    effect: { stress: 3 },
-                    res: "你把头埋进书里，努力降低存在感。空气紧张得像暴雨前的天。"
+                txt: "低头装作什么都没看见",
+                effect: { stress: 3 },
+                res: "你立刻把头埋进练习册里，假装自己只是一个没有感情的做题机器。空气紧张得像暴雨前的天。"
                 },
                 {
-                    txt: "心里支持老虚，但不出声",
-                    effect: { stress: -2, social: 1 },
-                    res: "你在心里给老虚鼓掌。虽然你什么都没说，但旁边同学似乎从你的眼神里读懂了一点东西。"
+                txt: "憋笑憋到内伤",
+                 effect: { stress: -3, social: 2 },
+                    res: "你死死咬住嘴唇，努力不让自己笑出声。旁边同学的肩膀也在微微发抖，你们在无声中达成了某种共识。",
+                    chance: {
+                     prob: 0.75,
+                     failEffect: { stress: 6, teacherFavor: -4 },
+                      failRes: "你终究还是没憋住，发出一声非常不合时宜的气音。驴老师的目光立刻扫了过来，你被一并列入重点观察对象。"
+                            }
+                },
+                 {
+                txt: "小声提醒老虚把苹果收起来",
+                effect: { social: 3, stress: 4 },
+                 res: "你压低声音提醒老虚赶紧收起来。老虚慢半拍地点点头，但苹果已经留下了决定性证据。至少他课后承认你还算讲义气。"
                 },
                 {
-                    txt: "小声附和一句“确实”",
-                    effect: { social: 5, stress: 6, teacherFavor: -6 },
-                    res: "你声音不大，但教室太安静了。驴老师的目光缓缓转向你，你意识到自己已经加入战场。"
-                },
-                {
-                    txt: "帮驴老师打圆场",
-                    effect: { teacherFavor: 5, social: -4, stress: 2 },
-                    res: "你试图说大家可能只是没理解到位。驴老师脸色稍微缓和了，但老虚看你的眼神像在看一个叛徒。"
-                },
-                {
-                    txt: "课后去安慰老虚",
-                    effect: { social: 4, stress: -2, teacherFavor: -2 },
-                    res: "下课后，老虚看起来还是一脸不服。你陪他吐槽了几句，他说你还算有点良心。"
-                }
+                  txt: "课后陪老虚复盘这场事故",
+            effect: { social: 4, stress: -2, teacherFavor: -2 },
+            res: "下课后，老虚依然坚持认为“苹果不算零食，应该算补充维生素”。你一边听一边震惊于他的逻辑完整性，最后竟然被他说得有点想笑。"
+                 }
             ]
         },
         {
@@ -1130,6 +1136,39 @@
                         prob: 0.45,
                         failEffect: { stress: 15, knowledge: 1 },
                         failRes: "你盯着压轴题看了半节课，越想越乱，最后连题干都快看不懂了。五角星讲解时你才发现自己从第一步就跑偏，压力暴涨。"
+                    }
+                }
+            ]
+
+        },
+        {
+            title: "同桌的奇怪称呼",
+            condition: (s) => s.social >= 35,
+            desc: "你的同桌最近不知道从哪里学来一个奇怪称呼，总喜欢用一种很郑重的语气喊你“老大”。一开始你以为只是普通玩笑，结果对方不仅课间这么喊，借橡皮时这么喊，有时还会突然靠过来抱住你的手臂，像是在演什么你完全没看过的电视剧。\n\n周围同学偶尔会起哄，但你其实并没有那种心动的感觉，更多是尴尬和不知所措。你开始思考，自己到底该怎么回应这份过分热情。",
+            choices: [
+                {
+                    txt: "认真说明自己不太习惯",
+                    effect: { stress: -4, social: -2 },
+                    res: "你找了个课间，尽量平静地告诉对方，自己不太习惯这种称呼和肢体接触。对方一开始有些愣住，但还是点了点头。气氛尴尬了一阵，不过你心里轻松了不少。"
+                },
+                {
+                    txt: "跟着开玩笑，含糊带过去",
+                    effect: { social: 3, stress: 4 },
+                    res: "你也跟着笑了几句，装作完全不在意。周围同学觉得你们很有节目效果，但你心里其实更尴尬了，因为你知道这件事大概率还会继续发生。"
+                },
+                {
+                    txt: "冷处理，尽量保持距离",
+                    effect: { stress: -2, social: -4 },
+                    res: "你开始减少和同桌的互动，对方靠过来时也会不动声色地往旁边挪一点。事情确实少了一些，但你们之间的气氛也变得有点僵。"
+                },
+                {
+                    txt: "向朋友吐槽这件事",
+                    effect: { stress: -5, social: 3 },
+                    res: "你把这件事讲给朋友听，朋友笑得差点拍桌子。你总算把憋了很久的尴尬说了出来。",
+                    chance: {
+                        prob: 0.65,
+                        failEffect: { stress: 8, social: -3 },
+                        failRes: "你本来只是想私下吐槽，结果这件事不知怎么传开了。对方明显有些受伤，班里也开始乱起哄，场面变得更加尴尬。"
                     }
                 }
             ]

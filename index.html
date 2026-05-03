@@ -117,6 +117,17 @@
         }
         #relation-btn:hover { background: #db2777; transform: translateY(-1px); }
         .status-actions { display: flex; align-items: center; gap: 8px; }
+        .talent-box {
+            display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+            gap: 6px; width: fit-content; max-width: 100%; margin: 0 auto 12px;
+            padding: 6px 12px; border-radius: 999px;
+            background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe;
+            font-size: 0.82rem; font-weight: 800; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);
+            line-height: 1.35; text-align: center;
+        }
+        .talent-effect {
+            color: #64748b; font-size: 0.76rem; font-weight: 700;
+        }
 
         /* 中部日志 */
         #log-container {
@@ -134,6 +145,12 @@
             border-left-color: #f97316;
             background: #fff7ed;
             color: #7c2d12;
+            font-weight: 600;
+        }
+        .log-system {
+            border-left-color: #3b82f6;
+            background: #eff6ff;
+            color: #1e3a8a;
             font-weight: 600;
         }
         @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
@@ -255,7 +272,7 @@
     <h1>新华初模拟器</h1>
     <button onclick="startGame()">开始游戏</button>
     <button onclick="showAchievements()" style="margin-top: 15px; background: #95a5a6; padding: 10px 30px; font-size: 1rem;">🏆 结局成就</button>
-    <div class="version-label">v0.379</div>
+    <div class="version-label">v0.381</div>
 </div>
 
 <div id="achievements-screen">
@@ -279,6 +296,7 @@
                 <button id="relation-btn" onclick="openRelationship()" style="display:none;">💌 关系</button>
             </div>
         </div>
+        <div class="talent-box" id="talent-display">✨ 天赋：无天赋</div>
         <div class="stats-grid">
             <div class="stat-item">
                 知识 <span id="val-knowledge">0</span>
@@ -357,6 +375,7 @@
         teacherFavor: 40,
         stress: 0,
         money: 0,
+        talent: null, // 每局开局选择的天赋；null 表示不选天赋
         shopUnlocked: false, // 第一次寒假结束、进入3月后才开启金钱与小卖部系统
         shopPurchasedThisTurn: false,
         purchasedUniqueItems: {}, // 记录整局限购道具是否已经购买
@@ -399,6 +418,114 @@
     const grades = ["预备班", "初一", "初二", "初三"];
     const knowledgeMaxByGrade = [300, 420, 530, 630];
 
+    const talentData = [
+        {
+            id: "early_bird",
+            name: "早慧",
+            desc: "知识增长 +8%，社交增长 -5%。你更容易理解复杂内容，但有时显得不太合群。"
+        },
+        {
+            id: "social_butterfly",
+            name: "自来熟",
+            desc: "社交增长 +15%，老师好感增长 -5%。你很容易和同学打成一片，但偶尔也会太活跃。"
+        },
+        {
+            id: "stress_tank",
+            name: "抗压怪物",
+            desc: "压力增加 ×0.85，压力减少 ×0.90。你比别人更能扛，但也不太会主动休息。"
+        },
+        {
+            id: "teacher_pet",
+            name: "老师眼缘",
+            desc: "老师好感增长 +20%，老师好感下降 +10%。老师更容易注意到你的表现。"
+        },
+        {
+            id: "shop_regular",
+            name: "小卖部熟客",
+            desc: "商店价格 -15%，每月零花钱 +1。你很会把有限的钱花在刀刃上。"
+        },
+        {
+            id: "exam_machine",
+            name: "做题机器",
+            desc: "知识增长 +12%，压力增加 +10%，社交增长 -10%。你像是为卷子而生。"
+        },
+        {
+            id: "class_moodmaker",
+            name: "班级气氛组",
+            desc: "社交增长 +20%，压力减少 +10%，知识增长 -8%。有你在的地方，气氛很难冷下来。"
+        },
+        {
+            id: "romcom_protagonist",
+            name: "青春喜剧主角",
+            desc: "恋爱线门槛降低，好感增长 +10%，但被发现时压力更高。"
+        },
+        {
+            id: "city_explorer",
+            name: "城市探索者",
+            desc: "龙之梦、萨莉亚、动漫展相关事件更容易出现。你的青春地图不只在教室。"
+        }
+    ];
+
+    function getTalent(id) {
+        return talentData.find(t => t.id === id);
+    }
+
+    function hasTalent(id) {
+        return state.talent === id;
+    }
+
+    function talentName() {
+        const t = getTalent(state.talent);
+        return t ? t.name : "无天赋";
+    }
+
+    function talentEffectText() {
+        const t = getTalent(state.talent);
+        return t ? t.desc.split("。")[0] : "没有额外加成";
+    }
+
+    function applyTalentMultiplier(key, val) {
+        if (!state.talent || val === 0) return val;
+        let result = val;
+
+        switch (state.talent) {
+            case "early_bird":
+                if (key === "knowledge" && val > 0) result *= 1.08;
+                if (key === "social" && val > 0) result *= 0.95;
+                break;
+            case "social_butterfly":
+                if (key === "social" && val > 0) result *= 1.15;
+                if (key === "teacherFavor" && val > 0) result *= 0.95;
+                break;
+            case "stress_tank":
+                if (key === "stress" && val > 0) result *= 0.85;
+                if (key === "stress" && val < 0) result *= 0.90;
+                break;
+            case "teacher_pet":
+                if (key === "teacherFavor" && val > 0) result *= 1.20;
+                if (key === "teacherFavor" && val < 0) result *= 1.10;
+                break;
+            case "exam_machine":
+                if (key === "knowledge" && val > 0) result *= 1.12;
+                if (key === "stress" && val > 0) result *= 1.10;
+                if (key === "social" && val > 0) result *= 0.90;
+                break;
+            case "class_moodmaker":
+                if (key === "social" && val > 0) result *= 1.20;
+                if (key === "stress" && val < 0) result *= 1.10;
+                if (key === "knowledge" && val > 0) result *= 0.92;
+                break;
+            case "romcom_protagonist":
+                if (key === "romanceAffection" && val > 0) result *= 1.10;
+                if (key === "stress" && val > 0 && state.romance && state.romance.met) result *= 1.10;
+                break;
+        }
+
+        if (result > 0) return Math.max(1, Math.round(result));
+        if (result < 0) return -Math.max(1, Math.round(Math.abs(result)));
+        return 0;
+    }
+
     function getCurrentGradeIndex() {
         let g = Math.floor(state.monthIndex / 12);
         const m = state.monthIndex % 12;
@@ -416,15 +543,24 @@
     function notifyKnowledgeCapForNewSchoolYear() {
         const m = state.monthIndex % 12;
         if (m !== 1) return; // 9月才是新学年正式开始
-        if (state.knowledgeCapNotified[state.monthIndex]) return;
-        state.knowledgeCapNotified[state.monthIndex] = true;
 
-        const gradeName = grades[getCurrentGradeIndex()];
+        const g = getCurrentGradeIndex();
+        if (state.knowledgeCapNotified[g]) return;
+        state.knowledgeCapNotified[g] = true;
+
+        const gradeName = grades[g];
         const max = getKnowledgeMax();
-        const msg = state.monthIndex === 1
-            ? `【新学年】${gradeName}正式开始。本学年学习内容上限为 ${max} 分，新华初的知识量开始变得具体起来。`
-            : `【新学年】${gradeName}正式开始。课程难度和知识总量上升，本学年知识上限提高到 ${max} 分。`;
-        addLog(msg);
+        let msg = "";
+        if (g === 0) {
+            msg = `📘【新学年】${gradeName}正式课程开始了。本学年知识上限为 ${max} 分。之后每升一学年，上限都会提高，代表学习内容变多。`;
+        } else if (g === 1) {
+            msg = `📘【升入初一】暑假结束，你正式升入初一。课程内容明显增加，本学年知识上限提升至 ${max} 分。过去学过的知识还在，但新的内容会让进度条被重新拉长。`;
+        } else if (g === 2) {
+            msg = `📘【升入初二】暑假结束，你正式升入初二。难度开始上升，班里的差距也逐渐拉开，本学年知识上限提升至 ${max} 分。`;
+        } else {
+            msg = `📘【升入初三】暑假结束，你正式进入中考年级。倒计时已经挂上黑板，本学年知识上限提升至 ${max} 分，每一分都变得更重要。`;
+        }
+        addSystemLog(msg);
     }
 
     function getKnowledgeRate() {
@@ -460,13 +596,13 @@
             multiplier *= 1.32;
         }
 
-        return Math.max(1, Math.round(base * multiplier));
+        return applyTalentMultiplier('knowledge', Math.max(1, Math.round(base * multiplier)));
     }
 
 
     // 压力增加柔化：所有正向压力增加统一乘以 0.85；减压不受影响。
     function stressGain(value) {
-        return Math.max(1, Math.round(value * 0.85));
+        return applyTalentMultiplier('stress', Math.max(1, Math.round(value * 0.85)));
     }
 
     function scaleEffectValue(key, val) {
@@ -476,7 +612,7 @@
             return 0;
         }
         if (key === 'stress' && val > 0) return stressGain(val);
-        return val;
+        return applyTalentMultiplier(key, val);
     }
 
     function applyEffectValue(key, val) {
@@ -1029,6 +1165,10 @@
         if (relationBtn) {
             relationBtn.style.display = (state.romance && state.romance.met) ? 'inline-flex' : 'none';
         }
+        const talentDisplay = document.getElementById('talent-display');
+        if (talentDisplay) {
+            talentDisplay.innerHTML = `✨ 天赋：${talentName()} <span class="talent-effect">${talentEffectText()}</span>`;
+        }
         document.getElementById('val-knowledge').innerText = getKnowledgeLabel();
         document.getElementById('val-teacher').innerText = Math.floor(state.teacherFavor);
         document.getElementById('val-social').innerText = Math.floor(state.social);
@@ -1069,6 +1209,15 @@
         const log = document.getElementById('log-container');
         const div = document.createElement('div');
         div.className = 'log-item log-warning';
+        div.innerHTML = msg;
+        log.prepend(div);
+        return div;
+    }
+
+    function addSystemLog(msg) {
+        const log = document.getElementById('log-container');
+        const div = document.createElement('div');
+        div.className = 'log-item log-system';
         div.innerHTML = msg;
         log.prepend(div);
         return div;
@@ -1160,6 +1309,9 @@
             effectStr.push(`${name} ${sign}${val}`);
         }
         applyRomanceUpdate(finalRomanceUpdate);
+        if (Object.prototype.hasOwnProperty.call(resolved, 'talentId')) {
+            state.talent = resolved.talentId;
+        }
         if (resolved.unlockAchievement) unlockAchievement(resolved.unlockAchievement);
 
         if (ev.title === "“大祭司”的奇妙仪式" && rawChoice.txt && rawChoice.txt.includes("凑过去")) {
@@ -1182,6 +1334,14 @@
     }
 
     // --- 商店逻辑 ---
+    function getShopItemPrice(item) {
+        let price = item.price;
+        if (hasTalent('shop_regular')) {
+            price = Math.max(1, Math.ceil(price * 0.85));
+        }
+        return price;
+    }
+
     function formatEffect(effect) {
         let effectStr = [];
         for (let key in effect) {
@@ -1693,8 +1853,14 @@
         });
     }
 
+    function canTriggerRomanceLine() {
+        const socialNeed = hasTalent('romcom_protagonist') ? 55 : 60;
+        const knowledgeNeed = hasTalent('romcom_protagonist') ? 0.55 : 0.60;
+        return state.social >= socialNeed && getKnowledgeRate() >= knowledgeNeed;
+    }
+
     function maybeTriggerRomanceFixedEvent() {
-        if (state.monthIndex === 19 && !state.romance.met && !state.romance.ended && state.social >= 60 && getKnowledgeRate() >= 0.60) {
+        if (state.monthIndex === 19 && !state.romance.met && !state.romance.ended && canTriggerRomanceLine()) {
             state.inEvent = true;
             setTimeout(() => triggerSpringOuting(), 500);
             return true;
@@ -1798,7 +1964,8 @@
         shopItems
             .filter(item => !item.condition || item.condition(state))
             .forEach(item => {
-                const canAfford = state.money >= item.price;
+                const price = getShopItemPrice(item);
+                const canAfford = state.money >= price;
                 const alreadyPurchased = item.unique && state.purchasedUniqueItems[item.id];
                 const disabled = state.shopPurchasedThisTurn || !canAfford || alreadyPurchased;
                 const disabledReason = alreadyPurchased ? '已购买' : (state.shopPurchasedThisTurn ? '本回合已购买' : (!canAfford ? '钱不够' : `购买`));
@@ -1807,7 +1974,7 @@
                 div.className = 'shop-item';
                 div.innerHTML = `
                     <div>
-                        <div class="shop-item-name">${item.name}${uniqueTag} <span style="color:#92400e; font-weight:800;">💰${item.price}</span></div>
+                        <div class="shop-item-name">${item.name}${uniqueTag} <span style="color:#92400e; font-weight:800;">💰${price}</span></div>
                         <div class="shop-item-desc">${item.desc}</div>
                         <div class="shop-item-effect">${formatEffect(item.effect)}</div>
                     </div>
@@ -1828,12 +1995,13 @@
             return;
         }
 
+        const price = getShopItemPrice(item);
         if (state.shopPurchasedThisTurn) {
             resultBox.style.display = 'block';
             resultBox.innerHTML = '这个回合已经买过东西了，别在小卖部把零花钱全花光。';
             return;
         }
-        if (state.money < item.price) {
+        if (state.money < price) {
             resultBox.style.display = 'block';
             resultBox.innerHTML = '你的零花钱不够，只能先恋恋不舍地放回货架。';
             return;
@@ -1844,7 +2012,7 @@
             return;
         }
 
-        state.money -= item.price;
+        state.money -= price;
         state.shopPurchasedThisTurn = true;
         if (item.unique) {
             state.purchasedUniqueItems[item.id] = true;
@@ -1861,11 +2029,11 @@
         }
 
         const effectText = effectStr.join('，');
-        const msg = `你购买了【${item.name}】。${item.desc}<br><span style="color:var(--primary); font-size:0.9em; font-weight:bold;">金钱 -${item.price}，${effectText}</span>`;
+        const msg = `你购买了【${item.name}】。${item.desc}<br><span style="color:var(--primary); font-size:0.9em; font-weight:bold;">金钱 -${price}，${effectText}</span>`;
         addLog(`【商店】${msg}`);
 
         resultBox.style.display = 'block';
-        resultBox.innerHTML = `购买成功！<br><br><b>${item.name}</b>：${item.desc}<br><span style="color:var(--primary); font-weight:bold;">金钱 -${item.price}，${effectText}</span>`;
+        resultBox.innerHTML = `购买成功！<br><br><b>${item.name}</b>：${item.desc}<br><span style="color:var(--primary); font-weight:bold;">金钱 -${price}，${effectText}</span>`;
 
         updateUI();
         renderShop();
@@ -1883,6 +2051,11 @@
         } else if (getKnowledgeRate() <= 0.60) {
             allowance = 0;
             allowanceMsg = "家长看完你的学习状态后冷笑一声：考得太烂还要什么零花钱？本月零花钱为 0。";
+        }
+
+        if (hasTalent('shop_regular')) {
+            allowance += 1;
+            allowanceMsg += " 你的小卖部熟客天赋让家长额外多给了 1 元。";
         }
 
         state.money += allowance;
@@ -1911,6 +2084,7 @@
         state.teacherFavor = 40;
         state.stress = 0;
         state.money = 0;
+        state.talent = null;
         state.shopUnlocked = false;
         state.shopPurchasedThisTurn = false;
         state.purchasedUniqueItems = {};
@@ -1941,7 +2115,7 @@
         
         updateActionButtons();
         updateUI();
-        startMilitaryTraining();
+        startTalentSelection();
     }
 
     function closeModal() {
@@ -2017,6 +2191,39 @@
 
     // --- 流程控制 ---
     let militaryQueue = [];
+
+    function getRandomTalents(count = 3) {
+        const pool = [...talentData];
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+        return pool.slice(0, count);
+    }
+
+    function startTalentSelection() {
+        militaryQueue = [...militaryEvents];
+        const offeredTalents = getRandomTalents(3);
+        const talentChoices = offeredTalents.map(t => ({
+            txt: `选择「${t.name}」\n${t.desc}`,
+            effect: {},
+            talentId: t.id,
+            res: `你选择了「${t.name}」。${t.desc}`
+        }));
+        talentChoices.push({
+            txt: "不选天赋，直接入内",
+            effect: {},
+            talentId: null,
+            res: "你没有选择任何天赋。没有额外优势，也没有额外代价，单纯靠自己走进新华初。"
+        });
+
+        openModal({
+            title: "选择你的初中天赋",
+            desc: "在踏入新华初之前，你似乎天生带着一点不一样的属性。每一局会随机出现 3 个天赋，你可以选择 1 个，也可以不选天赋直接入内。",
+            choices: talentChoices
+        });
+    }
+
     function startMilitaryTraining() {
         militaryQueue = [...militaryEvents];
         nextMilitaryStep();
@@ -2099,7 +2306,7 @@
                 
                 // 如果没有走神（判定为成功或大成功），30%概率增加老师好感
                 if (rand >= failProb && Math.random() < 0.3) {
-                    state.teacherFavor += 3;
+                    state.teacherFavor += applyTalentMultiplier('teacherFavor', 3);
                     msg += " 这一次，驴老师看到了你的努力，对你的好感上升了。";
                 }
                 state.consecutiveStudy++; // 连续学习次数+1
@@ -2108,20 +2315,20 @@
                 let socialRand = Math.random();
 
                 if (socialRand < 0.2) {
-                    state.social += 7;
-                    state.stress -= 8;
+                    state.social += applyTalentMultiplier('social', 7);
+                    state.stress += applyTalentMultiplier('stress', -8);
                     state.knowledge -= k(2);
                     msg = "你和朋友玩得特别开心，感觉这个月的压力都被冲淡了。不过作业确实落下了一点。";
                 } else if (socialRand < 0.8) {
-                    state.social += 5;
-                    state.stress -= 5;
+                    state.social += applyTalentMultiplier('social', 5);
+                    state.stress += applyTalentMultiplier('stress', -5);
                     state.knowledge -= k(1);
                     msg = "你放学后和朋友一起聊天、买零食、散步，心情轻松了不少。";
                 } else {
-                    state.social += 3;
+                    state.social += applyTalentMultiplier('social', 3);
                     state.stress += stressGain(5);
                     state.knowledge -= k(2);
-                    state.teacherFavor -= 2;
+                    state.teacherFavor += applyTalentMultiplier('teacherFavor', -2);
                     msg = "你和朋友玩得有点过头，回家太晚，还被驴老师知道了。虽然关系更熟了，但麻烦也来了。";
                 }
                 break;
@@ -2131,33 +2338,33 @@
                 let playRand = Math.random();
 
                 if (playRand < 0.10) {
-                    state.stress -= 4;
+                    state.stress += applyTalentMultiplier('stress', -4);
                     state.knowledge -= k(3);
-                    state.social += 4;
+                    state.social += applyTalentMultiplier('social', 4);
                     msg = "你本来只是想随便打两把，结果正好遇到同学在线。你们组队开黑，一边吐槽作业一边互相救场。复习时间确实没了，但关系倒是更熟了。";
                 } else if (playRand < 0.25) {
-                    state.stress -= 9;
+                    state.stress += applyTalentMultiplier('stress', -9);
                     state.knowledge -= k(4);
                     msg = "你一回家就打开电脑，难得连赢几局，确实爽了一把。但等你关机时，作业和复习已经被完整地留给了明天的自己。";
                 } else if (playRand < 0.75) {
-                    state.stress -= 5;
+                    state.stress += applyTalentMultiplier('stress', -5);
                     state.knowledge -= k(3);
                     msg = "你打了一会儿游戏，心情稍微轻松了点。不过快乐来得快去得也快，书包还原封不动地躺在旁边。";
                 } else {
                     state.stress += stressGain(7);
                     state.knowledge -= k(4);
-                    state.teacherFavor -= 3;
+                    state.teacherFavor += applyTalentMultiplier('teacherFavor', -3);
                     msg = "你本来只想打一小会儿，结果越打越上头。家长推门进来时，你的作业还一个字没动。第二天，驴老师也因为作业问题点名批评了你。";
                 }
                 break;
             case 'layflat':
                 if (Math.random() < 0.5) {
-                    state.stress -= 30;
+                    state.stress += applyTalentMultiplier('stress', -30);
                     state.knowledge -= k(5);
                     msg = "你躺平了一个月，发现原来就算在新华初，只要把眼睛合起来也能这么舒服。";
                 } else {
                     state.stress += stressGain(20);
-                    state.teacherFavor -= 5;
+                    state.teacherFavor += applyTalentMultiplier('teacherFavor', -5);
                     msg = "你虽然想着躺平，但是驴老师发现了你学习态度不端正，联系了你的家长。";
                 }
                 break;
@@ -2167,20 +2374,20 @@
                 msg = "一个暑假的补习班让你收获颇丰，但也疲惫不堪。";
                 break;
             case 'travel':
-                state.stress -= 20;
-                state.social += 10;
+                state.stress += applyTalentMultiplier('stress', -20);
+                state.social += applyTalentMultiplier('social', 10);
                 state.knowledge += knowledgeGain(2);
                 msg = "你和家人/朋友进行了一次愉快的旅行，见识大涨，身心舒畅。";
                 break;
             case 'summer_play':
-                state.stress -= 20;
+                state.stress += applyTalentMultiplier('stress', -20);
                 state.knowledge -= k(5);
                 msg = "空调、西瓜、WiFi... 你在家舒舒服服地躺了一个月。";
                 break;
             case 'hobby':
-                state.social += 5;
-                state.stress -= 5;
-                state.teacherFavor += 2;
+                state.social += applyTalentMultiplier('social', 5);
+                state.stress += applyTalentMultiplier('stress', -5);
+                state.teacherFavor += applyTalentMultiplier('teacherFavor', 2);
                 msg = "你利用暑假发展了你的兴趣爱好，在开学后惊艳了同学和老师。";
                 break;
             case 'winter_study':
@@ -2189,18 +2396,18 @@
                 msg = "你花了一周时间赶完了寒假作业。";
                 break;
             case 'visit_relatives':
-                state.social += 10;
-                state.stress -= 10;
+                state.social += applyTalentMultiplier('social', 10);
+                state.stress += applyTalentMultiplier('stress', -10);
                 msg = "你跟着父母走亲访友，收到了不少压岁钱，还和表兄弟姐妹们玩得很开心。";
                 break;
             case 'winter_play':
-                state.stress -= 15;
-                state.social += 5;
+                state.stress += applyTalentMultiplier('stress', -15);
+                state.social += applyTalentMultiplier('social', 5);
                 msg = "过年了，你和小伙伴们一起放烟花，不亦乐乎。";
                 break;
             case 'review':
                 state.knowledge += knowledgeGain(4);
-                state.teacherFavor += 2;
+                state.teacherFavor += applyTalentMultiplier('teacherFavor', 2);
                 msg = "你利用寒假预习了下学期的课程，感觉新学期会轻松不少。";
                 break;
         }
@@ -2364,6 +2571,13 @@
             if (state.isSummerVacation || state.isWinterVacation) {
                 const vacationIncompatibleEvents = ["数学卷子的签名", "体育课的自由活动", "五角星的奥数课", "萨莉亚的作业互助会"];
                 availableEvents = availableEvents.filter(item => !vacationIncompatibleEvents.includes(item.event.title));
+            }
+
+            // 城市探索者：更容易遇到虹口城市生活相关事件。
+            if (hasTalent('city_explorer')) {
+                const cityEventTitles = ["龙之梦的诱惑", "萨莉亚的作业互助会", "上海CP漫展的约定", "上海CP漫展的约定"];
+                const cityEvents = availableEvents.filter(item => cityEventTitles.includes(item.event.title));
+                availableEvents = availableEvents.concat(cityEvents);
             }
 
             // 恋爱中：把恋爱日常也加入同一随机池。最近 3 个恋爱事件不重复。

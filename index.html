@@ -199,6 +199,27 @@
             border-left-color: #ec4899;
             color: #831843;
         }
+        #modal-content.hidden-achievement-modal {
+            background: linear-gradient(180deg, #fffbeb 0%, #ffffff 72%);
+            border: 2px solid #facc15;
+            box-shadow: 0 25px 60px rgba(202, 138, 4, 0.28);
+        }
+        #modal-content.hidden-achievement-modal .modal-title {
+            color: #ca8a04;
+        }
+        #modal-content.hidden-achievement-modal .choice-btn {
+            background: #fefce8;
+            color: #854d0e;
+        }
+        #modal-content.hidden-achievement-modal .choice-btn:hover {
+            border-color: #facc15;
+            color: #a16207;
+        }
+        #modal-content.hidden-achievement-modal .result-box {
+            background: #fefce8;
+            border-left-color: #facc15;
+            color: #713f12;
+        }
 
         /* 商店 */
         #shop-overlay {
@@ -234,7 +255,7 @@
     <h1>新华初模拟器</h1>
     <button onclick="startGame()">开始游戏</button>
     <button onclick="showAchievements()" style="margin-top: 15px; background: #95a5a6; padding: 10px 30px; font-size: 1rem;">🏆 结局成就</button>
-    <div class="version-label">v0.376</div>
+    <div class="version-label">v0.377</div>
 </div>
 
 <div id="achievements-screen">
@@ -362,7 +383,13 @@
         pendingEnding: null, // 记录待触发的结局，用于防止弹窗冲突
         pendingRomanceEnding: null, // 普通结局后单独弹出的情感结局
         isWinterVacation: false,
-        isSummerVacation: false
+        isSummerVacation: false,
+        gameCount: 0,
+        studyCount: 0,
+        purchasedShopItemIds: {},
+        hasBeenVeryLowKnowledge: false,
+        maxStressEver: 0,
+        pendingHiddenAchievements: []
     };
 
     const months = ["8月", "9月", "10月", "11月", "12月", "1月", "2月", "3月", "4月", "5月", "6月", "7月"];
@@ -468,12 +495,12 @@
         // 普通道具：每回合限购 1 件，但整局可重复购买
         { id: "latiao", name: "辣条", price: 2, desc: "经久不衰的小零食，撕开包装就是校门口的味道。", effect: { stress: -1 } },
         { id: "milktea", name: "珍珠奶茶", price: 8, desc: "放学后偷偷来一杯，糖分能短暂拯救被作业掏空的灵魂，但也不能靠它解决所有压力。", effect: { stress: -3 } },
-        { id: "basketballSticker", name: "篮球明星贴纸", price: 12, desc: "贴在课桌角落的小小暗号，懂球的同学会主动和你搭话。", effect: { social: 3, stress: -2 } },
+        { id: "basketballSticker", name: "趣味贴纸", price: 12, desc: "贴在课桌角落的小小暗号，有相同兴趣的同学会主动和你搭话。", effect: { social: 3, stress: -2 } },
         { id: "pencilcase", name: "流行笔盒", price: 16, desc: "最近班里很流行的款式，你的好朋友也很喜欢。", effect: { social: 4 } },
         { id: "highlighter", name: "彩色荧光笔套装", price: 20, desc: "重点、难点、易错点一眼分明，复习时不会再被一整页黑字淹没。", effect: { knowledge: 1.5 } },
 
         // 特殊道具：整局限购 1 次，用来避免后期无限堆数值
-        { id: "looseleaf", name: "高效活页本", price: 35, desc: "日本公司推出的活页版本，整理错题和课堂笔记都更方便。整局限购一次。", effect: { knowledge: 3, stress: 1 }, unique: true },
+        { id: "looseleaf", name: "高效活页本", price: 35, desc: "日本公司推出的活页本，整理错题和课堂笔记都更方便。整局限购一次。", effect: { knowledge: 3, stress: 1 }, unique: true },
         { id: "autoPencil", name: "进口自动铅笔", price: 30, desc: "握起来很顺手的进口自动铅笔，写起证明题时都多了几分优等生气质。整局限购一次。", effect: { knowledge: 1.5, teacherFavor: 3 }, unique: true },
         { id: "deskLamp", name: "护眼台灯", price: 45, desc: "晚上写作业没那么刺眼了，熬夜复习也稍微舒服一点。整局限购一次。", effect: { knowledge: 2, stress: -3 }, unique: true },
         { id: "referenceBook", name: "压轴题参考书", price: 60, desc: "厚得像砖头，但里面确实藏着提高分数的套路。越到高分段越难靠它突飞猛进。整局限购一次。", effect: { knowledge: 4, stress: 6 }, unique: true },
@@ -499,6 +526,14 @@
         { id: "romance_unsaid", title: "没有说完的话", desc: "暧昧或表白失败后，故事停在青春里" }
     ];
 
+    const hiddenAchData = [
+        { id: "hidden_esports", title: "电竞选手", desc: "四年里打游戏超过 20 次。新华初没有电竞社，但你已经在心里打完了好几届校内联赛。" },
+        { id: "hidden_shop_vip", title: "小卖部 VIP", desc: "小卖部非恋爱专属商品全部买过一遍。老板甚至已经能从你掏钱的姿势判断你今天压力有多大。" },
+        { id: "hidden_study_warrior", title: "题海战神", desc: "死磕学习累计达到 25 次。卷子写到最后，连草稿纸都开始害怕你。" },
+        { id: "hidden_comeback", title: "逆袭之王", desc: "你曾经一度掉到极低知识区，却硬是把分数拉回了市重点水平。新华初不会记住你的狼狈，只会记住你的翻盘。" },
+        { id: "hidden_calm_master", title: "情绪管理大师", desc: "在新华初四年里，你从未让压力真正逼近崩溃。不是没有风浪，只是你学会了在风浪里喘气。" }
+    ];
+
     function getUnlockedAchievements() {
         return JSON.parse(localStorage.getItem('xhc_achievements') || '[]');
     }
@@ -508,6 +543,56 @@
         if (!achs.includes(id)) {
             achs.push(id);
             localStorage.setItem('xhc_achievements', JSON.stringify(achs));
+        }
+    }
+
+    function unlockHiddenAchievement(id) {
+        let achs = getUnlockedAchievements();
+        if (!achs.includes(id)) {
+            achs.push(id);
+            localStorage.setItem('xhc_achievements', JSON.stringify(achs));
+            if (!state.pendingHiddenAchievements.includes(id)) {
+                state.pendingHiddenAchievements.push(id);
+            }
+        }
+    }
+
+    function showNextHiddenAchievementIfAny() {
+        while (state.pendingHiddenAchievements.length > 0) {
+            const id = state.pendingHiddenAchievements.shift();
+            const ach = hiddenAchData.find(a => a.id === id);
+            if (!ach) continue;
+            openModal({
+                title: "隐藏成就解锁：" + ach.title,
+                desc: ach.desc,
+                theme: "hiddenAchievement",
+                choices: [{
+                    txt: state.pendingHiddenAchievements.length > 0 ? "继续查看隐藏成就" : "返回主菜单",
+                    effect: {},
+                    res: "你发现了新华初生活中一条不太寻常的路线。"
+                }]
+            });
+            return true;
+        }
+        return false;
+    }
+
+    function checkHiddenAchievementsOnGraduation() {
+        if (state.hasBeenVeryLowKnowledge && state.knowledge >= 580) {
+            unlockHiddenAchievement("hidden_comeback");
+        }
+        if (state.maxStressEver < 80) {
+            unlockHiddenAchievement("hidden_calm_master");
+        }
+    }
+
+    function checkShopVipAchievement() {
+        const requiredShopItems = shopItems
+            .filter(item => item.id !== "secretDiary")
+            .map(item => item.id);
+        const boughtAll = requiredShopItems.every(id => state.purchasedShopItemIds[id]);
+        if (boughtAll) {
+            unlockHiddenAchievement("hidden_shop_vip");
         }
     }
 
@@ -525,6 +610,17 @@
                 <div class="ach-item ${isUnlocked ? 'unlocked' : ''}">
                     <div class="ach-title">${ach.title} <span>${isUnlocked ? '✅' : '🔒'}</span></div>
                     <div class="ach-desc">${isUnlocked ? ach.desc : '？？？'}</div>
+                </div>
+            `;
+        });
+
+        hiddenAchData.forEach(ach => {
+            const isUnlocked = unlocked.includes(ach.id);
+            if (!isUnlocked) return;
+            achList.innerHTML += `
+                <div class="ach-item unlocked">
+                    <div class="ach-title">隐藏成就：${ach.title} <span>✨</span></div>
+                    <div class="ach-desc">${ach.desc}</div>
                 </div>
             `;
         });
@@ -894,6 +990,10 @@
         state.stress = Math.max(0, Math.min(100, state.stress));
         state.money = Math.max(0, state.money);
         state.romance.affection = Math.max(0, Math.min(100, state.romance.affection));
+        state.maxStressEver = Math.max(state.maxStressEver || 0, state.stress);
+        if (getKnowledgeRate() <= 0.15) {
+            state.hasBeenVeryLowKnowledge = true;
+        }
 
         checkDangerWarnings();
 
@@ -994,6 +1094,7 @@
         state.inEvent = true;
         const modalContent = document.getElementById('modal-content');
         modalContent.classList.toggle('romance-ending-modal', ev.theme === 'romanceEnding');
+        modalContent.classList.toggle('hidden-achievement-modal', ev.theme === 'hiddenAchievement');
         document.getElementById('modal-overlay').style.display = 'flex';
         document.getElementById('m-title').innerText = ev.title;
         document.getElementById('m-desc').innerText = ev.desc;
@@ -1728,6 +1829,8 @@
         if (item.unique) {
             state.purchasedUniqueItems[item.id] = true;
         }
+        state.purchasedShopItemIds[item.id] = true;
+        checkShopVipAchievement();
 
         let effectStr = [];
         for (let key in item.effect) {
@@ -1791,6 +1894,12 @@
         state.shopUnlocked = false;
         state.shopPurchasedThisTurn = false;
         state.purchasedUniqueItems = {};
+        state.purchasedShopItemIds = {};
+        state.gameCount = 0;
+        state.studyCount = 0;
+        state.hasBeenVeryLowKnowledge = false;
+        state.maxStressEver = 0;
+        state.pendingHiddenAchievements = [];
         resetRomance();
         state.warningFlags = {};
         state.monthIndex = 0;
@@ -1829,6 +1938,9 @@
                 let romanceEnding = state.pendingRomanceEnding;
                 state.pendingRomanceEnding = null;
                 openModal(romanceEnding);
+                return;
+            }
+            if (showNextHiddenAchievementIfAny()) {
                 return;
             }
             document.getElementById('game-container').style.display = 'none';
@@ -1912,6 +2024,8 @@
         let msg = "";
         switch(type) {
             case 'study':
+                state.studyCount++;
+                if (state.studyCount >= 25) unlockHiddenAchievement("hidden_study_warrior");
                 let failProb = 0.10 + (state.consecutiveStudy * 0.05); // 基础10%失败率，每次连学+5%
                 let rand = Math.random();
                 
@@ -1962,13 +2076,20 @@
                 }
                 break;
             case 'play':
+                state.gameCount++;
+                if (state.gameCount >= 20) unlockHiddenAchievement("hidden_esports");
                 let playRand = Math.random();
 
-                if (playRand < 0.20) {
-                    state.stress -= 10;
+                if (playRand < 0.10) {
+                    state.stress -= 4;
+                    state.knowledge -= k(3);
+                    state.social += 4;
+                    msg = "你本来只是想随便打两把，结果正好遇到同学在线。你们组队开黑，一边吐槽作业一边互相救场。复习时间确实没了，但关系倒是更熟了。";
+                } else if (playRand < 0.25) {
+                    state.stress -= 9;
                     state.knowledge -= k(4);
                     msg = "你一回家就打开电脑，难得连赢几局，确实爽了一把。但等你关机时，作业和复习已经被完整地留给了明天的自己。";
-                } else if (playRand < 0.70) {
+                } else if (playRand < 0.75) {
                     state.stress -= 5;
                     state.knowledge -= k(3);
                     msg = "你打了一会儿游戏，心情稍微轻松了点。不过快乐来得快去得也快，书包还原封不动地躺在旁边。";
@@ -2261,6 +2382,7 @@
         }
         
         if (type === "normal") {
+            checkHiddenAchievementsOnGraduation();
             const romanceEnding = getRomanceEndingResult();
             if (romanceEnding) {
                 if (romanceEnding.achKey) unlockAchievement(romanceEnding.achKey);

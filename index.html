@@ -1136,6 +1136,99 @@
         }
     ];
 
+    // --- 城市探索者专属事件 ---
+    const cityExplorerEvents = [
+        {
+            title: "四川北路旧书店",
+            desc: "放学后，你没有直接回家，而是沿着四川北路多走了一段。街角有一家旧书店，门口堆着打折练习册、漫画杂志和不知道第几版的竞赛题集。你本来只是想进去看看，却被纸张和灰尘混在一起的味道留住了。",
+            choices: [
+                {
+                    txt: "买一本旧竞赛题集",
+                    effect: { money: -8, knowledge: 3, stress: 2 },
+                    res: "你像捡到宝一样抱着书回家。题目有点古早，排版也很密，但里面确实有几道很有意思的题。"
+                },
+                {
+                    txt: "翻半小时漫画再走",
+                    effect: { stress: -6, social: 1, knowledge: -1 },
+                    res: "你蹲在角落翻了半小时漫画，直到老板咳嗽提醒你：‘同学，看看可以，别蹲太久。’"
+                },
+                {
+                    txt: "只买一本便宜笔记本",
+                    effect: { money: -3, stress: -2, knowledge: 1 },
+                    res: "你没买大部头，只挑了一本封面很顺眼的笔记本。回家后，你突然有了整理错题的冲动。"
+                }
+            ]
+        },
+        {
+            title: "地铁站里的迷路",
+            desc: "晚自习后，你决定试试一条没走过的回家路线。地铁站里人流像潮水一样涌动，换乘指示牌密密麻麻。你一边看地图一边自信地往前走，十分钟后发现自己站在完全陌生的出口。",
+            choices: [
+                {
+                    txt: "冷静看地图，重新规划路线",
+                    effect: { knowledge: 1, stress: 2, social: 1 },
+                    res: "你花了点时间重新看懂线路图。虽然晚到家了，但你对这座城市的理解稍微增加了一点。"
+                },
+                {
+                    txt: "凭直觉继续走",
+                    effect: { stress: -3, social: 2 },
+                    res: "你凭着直觉穿过陌生出口，居然绕回了熟悉的路。你开始觉得自己真的有点城市探索者的天赋。",
+                    chance: {
+                        prob: 0.60,
+                        failEffect: { stress: 8, knowledge: -1 },
+                        failRes: "你拐进一条更陌生的小路，终于意识到‘城市探索’和‘迷路’只有一步之遥。回家后，你已经没什么力气写作业了。"
+                    }
+                },
+                {
+                    txt: "打电话向家长求救",
+                    effect: { stress: 5, teacherFavor: 1 },
+                    res: "家长在电话里沉默了几秒，最后说：‘你不是说自己很熟吗？’你安全回家了，但面子掉了一地。"
+                }
+            ]
+        },
+        {
+            title: "多伦路奇怪展览",
+            desc: "你顺着多伦路走进一栋老建筑，里面正在办一个小展览。展板上的文字你看得半懂不懂，但那些旧照片、老地图和奇怪的装置让你觉得这座城市好像藏着很多没讲完的故事。",
+            choices: [
+                {
+                    txt: "认真看完展览说明",
+                    effect: { knowledge: 2, stress: -2 },
+                    res: "你没完全看懂，但记住了几个陌生的名字。回家路上，你突然觉得课本里的历史没有那么远。"
+                },
+                {
+                    txt: "拍照发给朋友吐槽",
+                    effect: { social: 4, stress: -3 },
+                    res: "你拍了几张奇怪展品发给朋友，对方回了一串问号。你们就此聊了半个晚上。"
+                },
+                {
+                    txt: "看不懂，迅速撤退",
+                    effect: { stress: -1 },
+                    res: "你承认自己暂时还没有理解艺术的能力，但至少进去蹭了一会儿空调。"
+                }
+            ]
+        },
+        {
+            title: "便利店限定新品",
+            desc: "你在回家路上发现便利店上了限定新品。包装上写着夸张的宣传语，旁边还有‘期间限定’四个字。你明知道这多半是营销，但手已经伸向了货架。",
+            choices: [
+                {
+                    txt: "买来尝尝",
+                    effect: { money: -4, stress: -4, social: 1 },
+                    res: "味道说不上惊艳，但你觉得今天至少发生了一件新鲜事。"
+                },
+                {
+                    txt: "拍照发给朋友讨论",
+                    effect: { social: 3, stress: -2 },
+                    res: "你没买，但朋友很快开始评价包装设计。你们从零食聊到作业，话题莫名其妙地延长了。"
+                },
+                {
+                    txt: "克制住，直接回家",
+                    effect: { knowledge: 1, stress: 1 },
+                    res: "你成功战胜了限定新品，但心里一直惦记它到底是什么味道。"
+                }
+            ]
+        }
+    ];
+
     function updateUI() {
         // 判定结束条件 (在限制范围之前判定，才能捕捉到负数或超100的情况)
         if (state.knowledge < 0 && !state.isGameOver) triggerEnding("knowledge");
@@ -2573,11 +2666,16 @@
                 availableEvents = availableEvents.filter(item => !vacationIncompatibleEvents.includes(item.event.title));
             }
 
-            // 城市探索者：更容易遇到虹口城市生活相关事件。
+            // 城市探索者：部分城市生活事件更容易出现，并加入专属事件池。
             if (hasTalent('city_explorer')) {
-                const cityEventTitles = ["龙之梦的诱惑", "萨莉亚的作业互助会", "上海CP漫展的约定", "上海CP漫展的约定"];
+                const cityEventTitles = ["龙之梦的诱惑", "萨莉亚的作业互助会"];
                 const cityEvents = availableEvents.filter(item => cityEventTitles.includes(item.event.title));
                 availableEvents = availableEvents.concat(cityEvents);
+
+                const exclusiveCityEvents = cityExplorerEvents
+                    .filter(e => !state.eventCounts[e.title] && (!e.condition || e.condition(state)))
+                    .map(e => ({ event: e, type: 'normal' }));
+                availableEvents = availableEvents.concat(exclusiveCityEvents);
             }
 
             // 恋爱中：把恋爱日常也加入同一随机池。最近 3 个恋爱事件不重复。

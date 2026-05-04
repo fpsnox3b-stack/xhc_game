@@ -94,6 +94,30 @@
             border-radius: 4px; margin-top: 6px; overflow: hidden;
         }
         .bar-fill { height: 100%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        /* 危险预警：数值条呼吸提示。阈值复用 checkDangerWarnings() 的原有条件 */
+        .bar-fill.warning-pulse {
+            animation: warningPulse 1.15s ease-in-out infinite;
+            filter: brightness(1.15);
+        }
+        #bar-knowledge.warning-pulse {
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.75);
+        }
+        #bar-teacher.warning-pulse {
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.75);
+        }
+        #bar-stress.warning-pulse {
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.85);
+        }
+        @keyframes warningPulse {
+            0%, 100% {
+                opacity: 0.72;
+                transform: scaleY(1);
+            }
+            50% {
+                opacity: 1;
+                transform: scaleY(1.35);
+            }
+        }
         .status-row {
             display: flex; justify-content: space-between; align-items: center;
             gap: 10px; margin-bottom: 12px;
@@ -275,7 +299,7 @@
     <h1>新华初模拟器</h1>
     <button onclick="startGame()">开始游戏</button>
     <button onclick="showAchievements()" style="margin-top: 15px; background: #95a5a6; padding: 10px 30px; font-size: 1rem;">🏆 结局成就</button>
-    <div class="version-label">v0.383</div>
+    <div class="version-label">v0.386</div>
 </div>
 
 <div id="achievements-screen">
@@ -417,7 +441,9 @@
         pendingHiddenAchievements: [],
         lugouqiaoMonth: null,
         lugouqiaoDone: false,
-        knowledgeCapNotified: {}
+        knowledgeCapNotified: {},
+        envelopeEventChecked: false, // 初三第一个月结束后“那只信封”事件是否已经判定过
+        pendingJuniorThreeDeclaration: false // 保留字段：用于旧版顺序事件兼容
     };
 
     const months = ["8月", "9月", "10月", "11月", "12月", "1月", "2月", "3月", "4月", "5月", "6月", "7月"];
@@ -580,7 +606,7 @@
     }
 
     // 知识增长衰减：越接近中考高分段，继续提分越难；
-    // 同时加入低分追赶机制：低于当前学年 60% 时，知识增加 ×1.32。
+    // 同时加入低分追赶机制：低于当前学年 60% 时，知识增加 ×1.12。
     // 只对“知识增加”生效；知识减少仍按基础比例扣除。
     function knowledgeGain(percent) {
         const base = k(percent);
@@ -599,7 +625,7 @@
         }
 
         if (rate < 0.60) {
-            multiplier *= 1.32;
+            multiplier *= 1.12;
         }
 
         return applyTalentMultiplier('knowledge', Math.max(1, Math.round(base * multiplier)));
@@ -1311,6 +1337,8 @@
         document.getElementById('bar-social').style.width = state.social + '%';
         document.getElementById('bar-stress').style.width = state.stress + '%';
 
+        updateWarningBarEffects();
+
         let g = Math.floor(state.monthIndex / 12);
         const m = state.monthIndex % 12;
         
@@ -1360,6 +1388,21 @@
         if (logElement && logElement.parentNode === log) {
             log.prepend(logElement);
         }
+    }
+
+    function updateWarningBarEffects() {
+        // 与 checkDangerWarnings() 的危险线保持一致：低知识、低老师好感、高压力。
+        const knowledgeDanger = state.knowledge >= 0 && getKnowledgeRate() <= 0.10;
+        const teacherDanger = state.teacherFavor >= 0 && state.teacherFavor <= 10;
+        const stressDanger = state.stress >= 91 && state.stress <= 100;
+
+        const knowledgeBar = document.getElementById('bar-knowledge');
+        const teacherBar = document.getElementById('bar-teacher');
+        const stressBar = document.getElementById('bar-stress');
+
+        if (knowledgeBar) knowledgeBar.classList.toggle('warning-pulse', knowledgeDanger);
+        if (teacherBar) teacherBar.classList.toggle('warning-pulse', teacherDanger);
+        if (stressBar) stressBar.classList.toggle('warning-pulse', stressDanger);
     }
 
     function checkDangerWarnings() {
@@ -2229,6 +2272,8 @@
         state.lugouqiaoMonth = null;
         state.lugouqiaoDone = false;
         state.knowledgeCapNotified = {};
+        state.envelopeEventChecked = false;
+        state.pendingJuniorThreeDeclaration = false;
         resetRomance();
         state.warningFlags = {};
         state.monthIndex = 0;
@@ -2274,6 +2319,12 @@
             }
             document.getElementById('game-container').style.display = 'none';
             document.getElementById('main-menu').style.display = 'flex';
+            return;
+        }
+
+        if (state.pendingJuniorThreeDeclaration) {
+            state.pendingJuniorThreeDeclaration = false;
+            triggerJuniorThreeDeclaration();
             return;
         }
 
@@ -2390,6 +2441,64 @@
                     }
                 ]
             });
+        }, 500);
+        return true;
+    }
+
+    const envelopeEvent = {
+        title: "那只信封",
+        desc: "初三开学后的第一个月，比你想象中更快地把人拖进了中考倒计时里。黑板上的日期一天天减少，晚自习后的教室却总像还没真正结束。卷子、默写、订正、月考排名，一件接着一件压下来，让人有点喘不过气。\n\n饭桌上，家长也明显变得紧张起来。他们反复问你最近听不听得懂、作业能不能写完，又翻出各种升学群里的聊天记录，说别人家都在“想办法”。\n\n某天晚上，你路过客厅时，听见家长压低声音讨论：“要不要给老师表示一下心意？不是为了别的，就是希望平时能多关照一点。”\n\n茶几上放着一只信封。它看起来很薄，却让整个房间都变得沉重起来。",
+        choices: [
+            {
+                txt: "劝家长别这样做",
+                effect: { stress: 8, teacherFavor: 1 },
+                res: "你鼓起勇气说这样不太合适，也不想让自己的初三靠这种事情继续往前走。家长一开始有些不高兴，觉得你不懂现实，但最后还是把信封收了起来。你松了口气，却也发现初三的压力已经不只是压在你一个人身上了。"
+            },
+            {
+                txt: "沉默接受家长的安排",
+                effect: { stress: 10, teacherFavor: 3 },
+                res: "你没有再说什么。过了几天，家长像完成了一件大事一样松了口气。那位老师后来确实对你多问了几句学习情况，也偶尔提醒你交作业，但一切都没有家长想象中那么神奇。卷子还是要自己写，题目还是一样难。那只信封换来的更像是一点心理安慰，而不是通往好成绩的捷径。"
+            },
+            {
+                txt: "说服家长正常沟通学习情况",
+                effect: { stress: 4, teacherFavor: 4, knowledge: 1 },
+                res: "你建议家长别急着送什么信封，真担心的话就正常和老师沟通学习状态。后来家长约了一次正式交流，老师虽然说话直接，但认真指出了你初三需要补的短板。你有点紧张，却也获得了更明确的方向。"
+            },
+            {
+                txt: "告诉家长：我会自己努力",
+                effect: { knowledge: 2, stress: 6 },
+                res: "你看着家长焦虑的样子，突然意识到他们也只是被初三吓住了。你没有讲大道理，只是说：“不用这样，我会自己努力。”那天晚上你多写了一套卷子，但心里也明白，从现在开始你得真的撑住。"
+            }
+        ]
+    };
+
+    function triggerJuniorThreeDeclaration() {
+        state.inEvent = true;
+        setTimeout(() => {
+            openModal({
+                title: "初三的决战宣言",
+                desc: "初二的暑假转瞬即逝。开学第一天，教室里的空气都变得焦灼起来。驴老师面色凝重地在黑板上写下了大大的『中考倒计时』。看着黑板上醒目的数字，你的内心作何感想？",
+                choices: [
+                    { txt: "拼了！向着市重点冲刺！", effect: { knowledge: 10, stress: 20, teacherFavor: 10 }, res: "你给自己灌下三大口鸡汤，戴上眼镜，进入了终极战斗状态。" },
+                    { txt: "稳扎稳打，按部就班", effect: { knowledge: 5, stress: 10 }, res: "你深吸一口气，决定按照自己的节奏复习。" },
+                    { txt: "压力太大了，我想逃避", effect: { stress: -10, teacherFavor: -15, knowledge: -5 }, res: "你决定能拖一天是一天，每天回家第一件事就是打开家里所有电子产品。驴老师看着你的状态直摇头。" }
+                ]
+            });
+        }, 500);
+    }
+
+    function maybeTriggerEnvelopeEventAfterFirstJuniorThreeMonth() {
+        // 初三第一个月结束后判定：初三 10月，也就是“初三的决战宣言”的下一个月。
+        if (state.monthIndex !== 38 || state.envelopeEventChecked) return false;
+        state.envelopeEventChecked = true;
+
+        if (Math.random() >= 0.5) {
+            return false;
+        }
+
+        state.inEvent = true;
+        setTimeout(() => {
+            openModal(envelopeEvent);
         }, 500);
         return true;
     }
@@ -2663,20 +2772,14 @@
             return;
         }
 
-        // 固定事件：初三开学决战 (此时 monthIndex 变为 37，即初三 9月)
+        // 固定事件：初三 9月结束后先触发“初三的决战宣言”。
         if (state.monthIndex === 37) {
-            state.inEvent = true; 
-            setTimeout(() => {
-                openModal({
-                    title: "初三的决战宣言",
-                    desc: "初二的暑假转瞬即逝。开学第一天，教室里的空气都变得焦灼起来。驴老师面色凝重地在黑板上写下了大大的『中考倒计时』。看着黑板上醒目的数字，你的内心作何感想？",
-                    choices: [
-                        { txt: "拼了！向着市重点冲刺！", effect: { knowledge: 10, stress: 20, teacherFavor: 10 }, res: "你给自己灌下三大口鸡汤，戴上眼镜，进入了终极战斗状态。" },
-                        { txt: "稳扎稳打，按部就班", effect: { knowledge: 5, stress: 10 }, res: "你深吸一口气，决定按照自己的节奏复习。" },
-                        { txt: "压力太大了，我想逃避", effect: { stress: -10, teacherFavor: -15, knowledge: -5 }, res: "你决定能拖一天是一天，每天回家第一件事就是打开家里所有电子产品。驴老师看着你的状态直摇头。" }
-                    ]
-                });
-            }, 500);
+            triggerJuniorThreeDeclaration();
+            return;
+        }
+
+        // 固定事件：初三第一个月结束后，10月有 50% 概率触发“那只信封”。
+        if (maybeTriggerEnvelopeEventAfterFirstJuniorThreeMonth()) {
             return;
         }
 
@@ -2773,7 +2876,7 @@
             } else if (score >= 500) {
                 school = "普通高中";
             } else {
-                school = "普通高中边缘";
+                school = "中专";
             }
             
             // 先判断更有特色的路线，再判断普通高分路线，避免“朋友成群”和“驴老师的爱徒”被学霸结局覆盖。
@@ -2794,7 +2897,7 @@
                 desc = `你最终考入了【${school}】。成绩或许不是最耀眼的，但在新华初的四年里，你收获了最可贵的友谊。毕业时，朋友们拉着你拍了无数张合影，青春没有遗憾。`;
                 achKey = "end_grad_4";
             } else if (score >= 570) {
-                title = "学霸本霸";
+                title = "顺利毕业";
                 desc = `你稳扎稳打，最终以相当优秀的成绩考入了【${school}】。虽然你的初中生涯没有太多波澜壮阔的传奇，但这份录取结果证明了你所有的汗水。`;
                 achKey = "end_grad_3";
             } else if (score < 500 && state.teacherFavor < 40) {

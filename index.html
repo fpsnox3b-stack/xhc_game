@@ -299,7 +299,7 @@
     <h1>新华初模拟器</h1>
     <button onclick="startGame()">开始游戏</button>
     <button onclick="showAchievements()" style="margin-top: 15px; background: #95a5a6; padding: 10px 30px; font-size: 1rem;">🏆 结局成就</button>
-    <div class="version-label">v0.387</div>
+    <div class="version-label">v0.389</div>
 </div>
 
 <div id="achievements-screen">
@@ -445,7 +445,9 @@
         envelopeEventChecked: false, // 初三第一个月结束后“那只信封”事件是否已经判定过
         pendingJuniorThreeDeclaration: false, // 保留字段：用于旧版顺序事件兼容
         talentRefreshesLeft: 3, // 开局天赋选择界面可重新抽取次数
-        familyConnectionUsed: false // “家里有人”天赋的老师好感保护是否已触发
+        familyConnectionUsed: false, // “家里有人”天赋的老师好感保护是否已触发
+        weeklyTestEventDone: false, // 预备班11月固定事件“周周爽”是否已触发
+        pendingEnglishTeacherEvent: false // 兼容旧版顺序事件字段
     };
 
     const months = ["8月", "9月", "10月", "11月", "12月", "1月", "2月", "3月", "4月", "5月", "6月", "7月"];
@@ -2353,6 +2355,8 @@
         state.pendingJuniorThreeDeclaration = false;
         state.talentRefreshesLeft = 3;
         state.familyConnectionUsed = false;
+        state.weeklyTestEventDone = false;
+        state.pendingEnglishTeacherEvent = false;
         resetRomance();
         state.warningFlags = {};
         state.monthIndex = 0;
@@ -2404,6 +2408,12 @@
         if (state.pendingJuniorThreeDeclaration) {
             state.pendingJuniorThreeDeclaration = false;
             triggerJuniorThreeDeclaration();
+            return;
+        }
+
+        if (state.pendingEnglishTeacherEvent) {
+            state.pendingEnglishTeacherEvent = false;
+            triggerEnglishTeacherEvent();
             return;
         }
 
@@ -2529,6 +2539,56 @@
             });
         }, 500);
         return true;
+    }
+
+    const weeklyTestEvent = {
+        title: "周周爽",
+        desc: "预备班刚过了一个多月，你才勉强适应新华初的作息。每天早读、上课、订正、回家写作业，已经让人觉得时间被切成了一小块一小块。\n\n就在你以为自己终于摸清节奏时，驴老师在班会上宣布：“从这周开始，每周都会安排一次小测，帮助大家及时发现问题。”\n\n班里瞬间安静下来。有人小声问：“每周都考吗？”\n\n驴老师推了推眼镜，说：“这叫周周爽。”\n\n你第一次意识到，在新华初，考试不一定要等到期中才会出现。",
+        choices: [
+            {
+                txt: "认真准备第一次周测",
+                effect: { knowledge: 4, stress: 8, teacherFavor: 3 },
+                res: "你把最近的错题重新看了一遍，又背了几页英语单词。第一次周测虽然不算轻松，但至少没有完全崩盘。驴老师看到你的订正还算认真，点了点头。"
+            },
+            {
+                txt: "表面淡定，实际慌得不行",
+                effect: { knowledge: 2, stress: 10 },
+                res: "你嘴上说“小测而已”，晚上却对着练习册翻来翻去。最后你并没有复习得多系统，但至少知道了自己哪些地方还没听懂。周测结束后，你发现真正可怕的不是考试本身，而是它下周还会来。"
+            },
+            {
+                txt: "和同学一起吐槽这个名字",
+                effect: { social: 4, stress: 5 },
+                res: "下课后，你和同学们围在一起研究“周周爽”到底爽在哪里。有人说爽在老师批卷爽，有人说爽在家长看分数爽。你们越说越离谱，虽然周测还在，但至少不是一个人在害怕。"
+            },
+            {
+                txt: "假装没听见",
+                effect: { stress: -4, knowledge: -2, teacherFavor: -2 },
+                res: "你决定暂时把“每周一次”这几个字从大脑里删除。当天晚上你甚至还多玩了一会儿游戏。可惜周测不会因为你假装没听见就消失，第二天卷子发下来时，你发现它甚至比想象中更真实。"
+            }
+        ]
+    };
+
+    function triggerWeeklyTestEvent() {
+        state.weeklyTestEventDone = true;
+        state.inEvent = true;
+        setTimeout(() => {
+            openModal(weeklyTestEvent);
+        }, 500);
+    }
+
+    function triggerEnglishTeacherEvent() {
+        state.inEvent = true;
+        setTimeout(() => {
+            openModal({
+                title: "恐怖的英语老师",
+                desc: "开学第一节英语课，人称“铁面”的中年女教师爱丽丝踩着高跟鞋走上讲台。她推了推眼镜，冷酷地宣布：每天必须雷打不动地默写几十个超纲英语词组。面对这堆积如山、几乎不可能完成的背诵任务，你决定：",
+                choices: [
+                    { txt: "挑灯夜战，死磕到底", effect: { knowledge: 5, teacherFavor: 5, stress: 10 }, res: "你熬到半夜终于背出了所有词组。第二天全对，爱丽丝老师罕见地在全班面前夸奖了你，但你感觉头昏脑涨。" },
+                    { txt: "尽力而为，背到哪算哪", effect: { knowledge: 3, stress: 15 }, res: "你背了一半就撑不住睡着了。默写成绩平平，爱丽丝老师敲着黑板让你放学留下来继续背，你感到十分心累。" },
+                    { txt: "消极怠工，随便应付", effect: { teacherFavor: -10, stress: 20 }, res: "你交上去一张几乎空白的默写纸。爱丽丝老师勃然大怒，当场把你家长叫到办公室痛批了一顿，压力瞬间爆炸！" }
+                ]
+            });
+        }, 500);
     }
 
     const envelopeEvent = {
@@ -2841,20 +2901,15 @@
             return;
         }
 
-        // 固定事件：预备班 9月常规选项执行完成后触发 (此时 monthIndex 刚变为 2)
+        // 固定事件：预备班 9月常规选项执行完成后触发“恐怖的英语老师”。
         if (state.monthIndex === 2) {
-            state.inEvent = true; // 锁定UI状态
-            setTimeout(() => {
-                openModal({
-                    title: "恐怖的英语老师",
-                    desc: "开学第一节英语课，人称“铁面”的中年女教师爱丽丝踩着高跟鞋走上讲台。她推了推眼镜，冷酷地宣布：每天必须雷打不动地默写几十个超纲英语词组。面对这堆积如山、几乎不可能完成的背诵任务，你决定：",
-                    choices: [
-                        { txt: "挑灯夜战，死磕到底", effect: { knowledge: 5, teacherFavor: 5, stress: 10 }, res: "你熬到半夜终于背出了所有词组。第二天全对，爱丽丝老师罕见地在全班面前夸奖了你，但你感觉头昏脑涨。" },
-                        { txt: "尽力而为，背到哪算哪", effect: { knowledge: 3, stress: 15 }, res: "你背了一半就撑不住睡着了。默写成绩平平，爱丽丝老师敲着黑板让你放学留下来继续背，你感到十分心累。" },
-                        { txt: "消极怠工，随便应付", effect: { teacherFavor: -10, stress: 20 }, res: "你交上去一张几乎空白的默写纸。爱丽丝老师勃然大怒，当场把你家长叫到办公室痛批了一顿，压力瞬间爆炸！" }
-                    ]
-                });
-            }, 500);
+            triggerEnglishTeacherEvent();
+            return;
+        }
+
+        // 固定事件：预备班 10月常规选项执行完成后触发“周周爽”。
+        if (state.monthIndex === 3 && !state.weeklyTestEventDone) {
+            triggerWeeklyTestEvent();
             return;
         }
 

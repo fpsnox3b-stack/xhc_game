@@ -161,6 +161,13 @@
             margin-top: 4px;
             min-height: 1.4em;
         }
+        .dice-modifier-text {
+            margin: 6px 0 10px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #64748b;
+            line-height: 1.45;
+        }
         .dice-roll-btn {
             width: 100%;
             margin-top: 4px;
@@ -356,7 +363,7 @@
     <h1>新华初模拟器</h1>
     <button onclick="startGame()">开始游戏</button>
     <button onclick="showAchievements()" style="margin-top: 15px; background: #95a5a6; padding: 10px 30px; font-size: 1rem;">🏆 结局成就</button>
-    <div class="version-label">v0.393</div>
+    <div class="version-label">v0.394</div>
 </div>
 
 <div id="achievements-screen">
@@ -1092,8 +1099,69 @@
             desc: "这次数学测验你考得不太好，驴老师要求家长在卷子上签名。",
             choices: [
                 { txt: "诚实给家长签", effect: { stress: 10, teacherFavor: 5 }, res: "虽然被挨了顿批，但驴老师觉得你很诚信。" },
-                { txt: "模仿家长笔迹代签", effect: { stress: -5 }, res: "瞒天过海！压力暂时缓解了。", 
-                  chance: { prob: 0.4, failEffect: { teacherFavor: -20, stress: 15 }, failRes: "驴老师一眼看穿！请家长去办公室喝茶，你惨了。" } }
+                {
+                    txt: "模仿家长笔迹代签",
+                    diceDesc: "你决定模仿家长的笔迹把名字签上去。笔尖落在卷子上的一瞬间，你突然意识到这不是普通的作业订正，而是一场和驴老师视力、经验以及你自己手稳程度的较量。\n\n这一次，能不能瞒过去，要看骰子。",
+                    dice: {
+                        sides: 20,
+                        dc: 13,
+                        bonus: () => {
+                            let value = 0;
+                            const details = [];
+
+                            if (state.teacherFavor >= 70) {
+                                value += 2;
+                                details.push("老师好感较高 +2");
+                            } else if (state.teacherFavor >= 50) {
+                                value += 1;
+                                details.push("老师好感尚可 +1");
+                            }
+
+                            if (state.teacherFavor <= 10) {
+                                value -= 3;
+                                details.push("老师已经重点盯防 -3");
+                            } else if (state.teacherFavor <= 20) {
+                                value -= 2;
+                                details.push("老师好感较低 -2");
+                            }
+
+                            if (state.stress >= 95) {
+                                value -= 4;
+                                details.push("压力濒临崩溃 -4");
+                            } else if (state.stress >= 80) {
+                                value -= 2;
+                                details.push("压力过高 -2");
+                            }
+
+                            if (state.social >= 70) {
+                                value += 1;
+                                details.push("比较会装自然 +1");
+                            }
+
+                            return { value, details };
+                        },
+                        critFail: {
+                            title: "大失败",
+                            effect: { teacherFavor: -25, stress: 20 },
+                            res: "你刚把名字写完，就发现自己把一个笔画写得离谱地认真。驴老师拿起卷子看了两秒，又看了看你：“你家长这字，怎么越看越像你？”当天放学，你被请进办公室，家长也接到了电话。"
+                        },
+                        fail: {
+                            title: "失败",
+                            effect: { teacherFavor: -10, stress: 10 },
+                            res: "驴老师皱着眉看了很久，最后把卷子放到一边：“这个签名，回去重新签一遍。”你没有被当场拆穿，但那种被盯上的感觉比直接挨骂还难受。"
+                        },
+                        success: {
+                            title: "成功",
+                            effect: { stress: -5 },
+                            res: "卷子顺利交了上去。你表面平静，心里却像刚从考场里逃出来一样。压力暂时下去了，但你也知道这招不能常用。"
+                        },
+                        critSuccess: {
+                            title: "大成功",
+                            effect: { stress: -8, social: 1 },
+                            res: "驴老师甚至没有多看一眼就把卷子收走了。你第一次意识到，人类的潜能有时会在非常错误的方向上被激发出来。"
+                        }
+                    }
+                }
             ]
         },
         {
@@ -1731,6 +1799,23 @@
     }
 
 
+    function getDiceBonusInfo(dice) {
+        if (!dice || typeof dice.bonus !== 'function') {
+            return { value: 0, details: [] };
+        }
+        const info = dice.bonus() || {};
+        return {
+            value: Number(info.value || 0),
+            details: Array.isArray(info.details) ? info.details : []
+        };
+    }
+
+    function formatDiceBonus(value) {
+        if (value > 0) return `+${value}`;
+        if (value < 0) return `${value}`;
+        return "+0";
+    }
+
     function openDiceModal(ev) {
         state.inEvent = true;
         const modalContent = document.getElementById('modal-content');
@@ -1740,24 +1825,31 @@
         document.getElementById('m-desc').innerText = ev.desc;
         document.getElementById('m-result').style.display = 'none';
 
+        const dice = ev.dice;
+        const bonusInfo = getDiceBonusInfo(dice);
+        const modifierText = bonusInfo.details.length > 0
+            ? `修正：${bonusInfo.details.join(' / ')}｜合计 ${formatDiceBonus(bonusInfo.value)}`
+            : `修正：无｜合计 +0`;
+
         const btnGroup = document.getElementById('m-choices');
         btnGroup.innerHTML = `
             <div class="dice-panel">
-                <div class="dice-label">🎲 命运判定 D${ev.dice.sides || 20}</div>
+                <div class="dice-label">🎲 命运判定 D${dice.sides || 20}｜DC ${dice.dc}</div>
                 <div class="dice-box" id="dice-box">?</div>
                 <div class="dice-result-title" id="dice-result-title">点击掷骰，看看命运站在哪边。</div>
+                <div class="dice-modifier-text" id="dice-modifier-text">${modifierText}</div>
                 <button class="dice-roll-btn" id="dice-roll-btn">🎲 掷骰</button>
             </div>
         `;
         document.getElementById('dice-roll-btn').onclick = () => rollDiceForEvent(ev);
     }
 
-    function getDiceOutcome(ev, roll) {
+    function getDiceOutcome(ev, roll, total) {
         const dice = ev.dice;
         const sides = dice.sides || 20;
         if (roll === 1) return dice.critFail;
         if (roll === sides) return dice.critSuccess;
-        if (roll >= dice.dc) return dice.success;
+        if (total >= dice.dc) return dice.success;
         return dice.fail;
     }
 
@@ -1790,11 +1882,16 @@
     }
 
     function resolveDiceEvent(ev, roll) {
-        const outcome = getDiceOutcome(ev, roll);
         const dice = ev.dice;
+        const bonusInfo = getDiceBonusInfo(dice);
+        const total = roll + bonusInfo.value;
+        const outcome = getDiceOutcome(ev, roll, total);
+        const diceFormula = bonusInfo.value === 0
+            ? `D${dice.sides || 20} = ${roll}`
+            : `D${dice.sides || 20} = ${roll}，修正 ${formatDiceBonus(bonusInfo.value)}，合计 ${total}`;
         const title = document.getElementById('dice-result-title');
         if (title) {
-            title.innerText = `D${dice.sides || 20} = ${roll}｜${outcome.title}`;
+            title.innerText = `${diceFormula}｜${outcome.title}`;
         }
 
         let effectStr = [];
@@ -1806,13 +1903,16 @@
             effectStr.push(`${name} ${sign}${val}`);
         }
 
+        const modifierHtml = bonusInfo.details.length > 0
+            ? `<br><span style="color:#64748b; font-size:0.9em; font-weight:bold;">修正：${bonusInfo.details.join(' / ')}</span>`
+            : "";
         const effectHtml = effectStr.length > 0 ? `<br><br><span style="color:var(--primary); font-weight:bold;">${effectStr.join(', ')}</span>` : "";
-        const logMessage = `【${ev.title}｜D${dice.sides || 20}=${roll}｜${outcome.title}】 ${outcome.res}` + (effectStr.length > 0 ? `<br><span style="color:var(--primary); font-size:0.9em; font-weight:bold;">${effectStr.join(', ')}</span>` : '');
+        const logMessage = `【${ev.title}｜${diceFormula}｜${outcome.title}】 ${outcome.res}` + modifierHtml + (effectStr.length > 0 ? `<br><span style="color:var(--primary); font-size:0.9em; font-weight:bold;">${effectStr.join(', ')}</span>` : '');
         addLog(logMessage);
 
         document.getElementById('m-choices').innerHTML = '';
         document.getElementById('m-result').style.display = 'block';
-        document.getElementById('m-result-text').innerHTML = `🎲 D${dice.sides || 20} = ${roll}｜${outcome.title}<br><br>${outcome.res}${effectHtml}`;
+        document.getElementById('m-result-text').innerHTML = `🎲 ${diceFormula}｜${outcome.title}${modifierHtml}<br><br>${outcome.res}${effectHtml}`;
         updateUI();
     }
 
@@ -1822,6 +1922,16 @@
         let finalRes = resolved.res;
         let finalEffect = { ...resolved.effect };
         let finalRomanceUpdate = resolved.romanceUpdate;
+
+        // 可视化骰子判定：用于“只看运气”的选择，不占用普通随机事件名额。
+        if (resolved.dice) {
+            openDiceModal({
+                title: ev.title,
+                desc: resolved.diceDesc || resolved.res || ev.desc,
+                dice: resolved.dice
+            });
+            return;
+        }
 
         // 概率判定
         if (resolved.chance) {

@@ -363,7 +363,7 @@
     <h1>新华初模拟器</h1>
     <button onclick="startGame()">开始游戏</button>
     <button onclick="showAchievements()" style="margin-top: 15px; background: #95a5a6; padding: 10px 30px; font-size: 1rem;">🏆 结局成就</button>
-    <div class="version-label">v0.394</div>
+    <div class="version-label">v0.396</div>
 </div>
 
 <div id="achievements-screen">
@@ -958,8 +958,44 @@
             desc: "盒饭里的红烧大排很油，食堂里弥漫着汗味。教官大喊：“食不言！10分钟吃完！”",
             choices: [
                 { txt: "强忍不适，迅速扒完", effect: { stress: 5, teacherFavor: 3 }, res: "你遵守了纪律，驴老师对你的执行力表示肯定。" },
-                { txt: "趁老师不注意，偷偷倒掉", effect: { stress: -3 }, res: "你感觉胃里轻松了点。幸运的是没被发现。", 
-                  chance: { prob: 0.5, failEffect: { teacherFavor: -10, stress: 5 }, failRes: "倒了一半被驴老师抓个正着！他罚你写 500 字反思。" } },
+                {
+                    txt: "趁老师不注意，偷偷倒掉",
+                    diceDesc: "你端着盒饭，趁教官转身的瞬间把目光投向旁边的垃圾桶。红烧大排的油光在阳光下格外刺眼，你知道这不是光明正大的选择，但胃已经开始抗议。\n\n这一次，能不能在不被发现的情况下处理掉它，要看骰子。",
+                    dice: {
+                        sides: 20,
+                        dc: 12,
+                        bonus: () => {
+                            let value = 0;
+                            const details = [];
+                            if (state.teacherFavor >= 60) { value += 1; details.push("老师暂时没盯紧你 +1"); }
+                            if (state.teacherFavor <= 20) { value -= 2; details.push("老师好感较低 -2"); }
+                            if (state.stress >= 90) { value -= 3; details.push("压力太高动作变形 -3"); }
+                            else if (state.stress >= 70) { value -= 1; details.push("压力偏高 -1"); }
+                            if (state.social >= 60) { value += 1; details.push("同学帮你打掩护 +1"); }
+                            return { value, details };
+                        },
+                        critFail: {
+                            title: "大失败",
+                            effect: { stress: 12, teacherFavor: -12, social: -2 },
+                            res: "你刚把盒饭倾斜到一半，就同时对上了教官和驴老师的目光。空气凝固了三秒，你手里的红烧大排还非常配合地滑了出来。接下来的教育时间，比午饭本身还要难以下咽。"
+                        },
+                        fail: {
+                            title: "失败",
+                            effect: { stress: 8, teacherFavor: -8 },
+                            res: "你倒到一半被驴老师抓个正着。他没有立刻发火，只是让你把剩下的饭端回来，并要求你写一段反思。你感觉胃里和心里都更堵了。"
+                        },
+                        success: {
+                            title: "成功",
+                            effect: { stress: -3 },
+                            res: "你趁队伍最混乱的时候完成了这次危险操作。胃里终于轻松了一点，虽然你也知道这种事最好不要被任何人复盘。"
+                        },
+                        critSuccess: {
+                            title: "大成功",
+                            effect: { stress: -5, social: 2 },
+                            res: "你不但没有被发现，还顺手帮旁边同样吃不下的同学处理了一点。你们交换了一个劫后余生的眼神，仿佛刚完成了一次秘密行动。"
+                        }
+                    }
+                },
                 { txt: "和旁边同学吐槽菜太难吃", effect: { social: 5, teacherFavor: -5, stress: 5 }, res: "你们相视一笑，但教官狠瞪了你一眼，回头就把这件事告诉了班主任。" }
             ]
         },
@@ -1184,8 +1220,74 @@
             title: "忘带作业本",
             desc: "早读课收作业时，你翻遍书包，如遭雷击——昨晚写到半夜的数学卷子忘在家里了！课代表催促的目光正盯着你。",
             choices: [
-                { txt: "火速借同学的狂抄一份", effect: { stress: -5, knowledge: -2 }, res: "你发挥出全部潜能，蒙混过关。", 
-                  chance: { prob: 0.7, failEffect: { stress: 15, teacherFavor: -10 }, failRes: "被驴老师看出笔迹不对，叫到办公室罚站。" } },
+                {
+                    txt: "火速借同学的狂抄一份",
+                    diceDesc: "课代表已经走到前排，你的数学卷子却还空着最后几题。你迅速向旁边同学借来作业本，笔尖几乎要在纸上飞起来。\n\n这不是正常补作业，而是一场和时间、字迹、步骤相似度以及驴老师观察力的极限对赌。能不能蒙混过关，要看骰子。",
+                    dice: {
+                        sides: 20,
+                        dc: 15,
+                        bonus: () => {
+                            let value = 0;
+                            const details = [];
+
+                            if (state.social >= 70) {
+                                value += 2;
+                                details.push("同学配合默契 +2");
+                            } else if (state.social >= 50) {
+                                value += 1;
+                                details.push("同学愿意帮忙 +1");
+                            }
+
+                            if (state.teacherFavor >= 70) {
+                                value += 1;
+                                details.push("老师不太怀疑你 +1");
+                            }
+
+                            if (state.teacherFavor <= 10) {
+                                value -= 3;
+                                details.push("老师已经重点盯防 -3");
+                            } else if (state.teacherFavor <= 20) {
+                                value -= 2;
+                                details.push("老师好感较低 -2");
+                            }
+
+                            if (state.stress >= 95) {
+                                value -= 4;
+                                details.push("压力濒临崩溃 -4");
+                            } else if (state.stress >= 80) {
+                                value -= 2;
+                                details.push("压力过高 -2");
+                            }
+
+                            if (getKnowledgeRate() >= 0.70) {
+                                value += 1;
+                                details.push("知识基础较好，能改写步骤 +1");
+                            }
+
+                            return { value, details };
+                        },
+                        critFail: {
+                            title: "大失败",
+                            effect: { stress: 20, teacherFavor: -15, social: -3, knowledge: -2 },
+                            res: "你抄到一半才发现自己连同学的名字都差点一起抄上去。更糟的是，驴老师收作业时一眼看出了两份卷子的步骤几乎完全一样。你和借你作业的同学一起被叫到办公室，友情和师生关系同时经历了一次严峻考验。"
+                        },
+                        fail: {
+                            title: "失败",
+                            effect: { stress: 15, teacherFavor: -10 },
+                            res: "你赶在收作业前把空白补满了，但字迹越来越飞，最后几题还和同学的答案错得一模一样。驴老师看完后没有立刻发火，只是把你叫到办公室，让你重新讲一遍解题过程。"
+                        },
+                        success: {
+                            title: "成功",
+                            effect: { stress: -5, knowledge: -2 },
+                            res: "你发挥出惊人的手速，在课代表走到你这排前补完了最后几题。虽然你几乎没真正理解题目，但至少这一次蒙混过关。"
+                        },
+                        critSuccess: {
+                            title: "大成功",
+                            effect: { stress: -8, social: 2 },
+                            res: "你不仅补完了作业，还在最后一题上顺手改了一个同学原本写错的答案。课代表收走卷子时，你和同学交换了一个劫后余生的眼神。你知道这不是正道，但这一刻确实像完成了一次极限逃生。"
+                        }
+                    }
+                },
                 { txt: "硬着头皮向驴老师坦白", effect: { teacherFavor: -5, stress: 10 }, res: "迎来一顿劈头盖脸的痛骂，但至少诚实。" },
                 { txt: "偷偷去办公室打电话喊家长送", effect: { stress: 5 }, res: "家长火急火燎地送来了，免于责罚，但你感到深深的内疚。" }
             ]
@@ -1196,8 +1298,45 @@
             choices: [
                 { txt: "原路返回教室开始自习", effect: { knowledge: 3, stress: 10 }, res: "做题家的基本修养，但肚子好饿。" },
                 { txt: "掏出MP3听歌，慢慢挪动", effect: { stress: -5 }, res: "你决定放空大脑，享受这片刻的宁静。" },
-                { txt: "展现身法，在人流中穿行，今天坐地铁回家", effect: { stress: -2 }, res: "你像风一样穿梭，节约了宝贵的时间。", 
-                  chance: { prob: 0.8, failEffect: { teacherFavor: -10, stress: 15 }, failRes: "不小心撞到了隔壁班的班主任，被当场扣下狠狠教育了一顿！" } }
+                {
+                    txt: "展现身法，在人流中穿行，今天坐地铁回家",
+                    diceDesc: "四川北路的晚高峰像一条缓慢蠕动的河。家长、电瓶车、书包和校服挤成一团，你盯着人群缝隙，决定靠自己的身法杀出一条路。\n\n能不能顺利穿过去，就交给命运判定。",
+                    dice: {
+                        sides: 20,
+                        dc: 16,
+                        bonus: () => {
+                            let value = 0;
+                            const details = [];
+                            if (state.social >= 70) { value += 2; details.push("在人群里很会找路 +2"); }
+                            else if (state.social >= 50) { value += 1; details.push("不太怕人群 +1"); }
+                            if (state.stress >= 95) { value -= 4; details.push("压力濒临崩溃 -4"); }
+                            else if (state.stress >= 80) { value -= 2; details.push("压力过高 -2"); }
+                            if (hasTalent && hasTalent("city_explorer")) { value += 2; details.push("城市探索者 +2"); }
+                            if (state.teacherFavor <= 20) { value -= 1; details.push("老师最近盯你更紧 -1"); }
+                            return { value, details };
+                        },
+                        critFail: {
+                            title: "大失败",
+                            effect: { stress: 18, teacherFavor: -12 },
+                            res: "你刚挤出人群，就结结实实撞上了隔壁班班主任。更糟的是，这件事很快传到了驴老师那里。你原本只是想早点回家，最后却收获了一场横跨两个班主任的联合教育。"
+                        },
+                        fail: {
+                            title: "失败",
+                            effect: { stress: 15, teacherFavor: -10 },
+                            res: "你在人流中穿行得太急，不小心撞到了隔壁班的班主任。对方当场把你扣下，认真教育了一顿。你看着越来越晚的天色，感觉今晚的三张卷子正在远处冷笑。"
+                        },
+                        success: {
+                            title: "成功",
+                            effect: { stress: -2 },
+                            res: "你像风一样从人群缝隙里穿了过去，成功绕开最堵的一段路。虽然书包被挤得有点歪，但至少节约了宝贵的时间。"
+                        },
+                        critSuccess: {
+                            title: "大成功",
+                            effect: { stress: -5, knowledge: 1 },
+                            res: "你不仅顺利坐上地铁，还比平时早到家了一点。那天晚上，你居然多挤出了一小段时间订正错题。城市路线规划第一次变成了学习资源。"
+                        }
+                    }
+                }
             ]
         },
         {
@@ -1209,8 +1348,45 @@
             },
             desc: "放学后，你和班里一位异性同学边走边讨论题目，不知不觉从四川北路走到了学校附近著名的“甜爱路”上。突然，你看到前方不远处，驴老师正叼着根烟迎面走来！在新华初，这简直是跳进黄河也洗不清的“早恋”修罗场！",
             choices: [
-                { txt: "光速闪进旁边的弄堂", effect: { stress: -5 }, res: "你们躲在阴影里大气都不敢出，惊险逃过一劫。", 
-                  chance: { prob: 0.6, failEffect: { stress: 25, teacherFavor: -20 }, failRes: "弄堂是死胡同！被驴老师“瓮中捉鳖”，直接请家长谈话，压力爆炸！" } },
+                {
+                    txt: "光速闪进旁边的弄堂",
+                    diceDesc: "你几乎是在看到驴老师的一瞬间做出了反应。甜爱路的空气突然变得危险，旁边的弄堂像一条临时出现的逃生路线。\n\n能不能成功避开这场修罗场，要看骰子。",
+                    dice: {
+                        sides: 20,
+                        dc: 14,
+                        bonus: () => {
+                            let value = 0;
+                            const details = [];
+                            if (state.social >= 70) { value += 1; details.push("反应配合还算默契 +1"); }
+                            if (state.stress >= 95) { value -= 4; details.push("压力濒临崩溃 -4"); }
+                            else if (state.stress >= 80) { value -= 2; details.push("压力过高 -2"); }
+                            if (state.teacherFavor >= 70) { value += 1; details.push("老师未必会往坏处想 +1"); }
+                            if (state.teacherFavor <= 20) { value -= 2; details.push("老师好感较低 -2"); }
+                            if (hasTalent && hasTalent("read_the_room")) { value += 2; details.push("会看脸色 +2"); }
+                            return { value, details };
+                        },
+                        critFail: {
+                            title: "大失败",
+                            effect: { stress: 28, teacherFavor: -22, social: -3 },
+                            res: "你们冲进弄堂后才发现这是死胡同。驴老师慢慢走到弄堂口，像是早就预判了你们的路线。那一刻，你终于理解了什么叫“瓮中捉鳖”。"
+                        },
+                        fail: {
+                            title: "失败",
+                            effect: { stress: 25, teacherFavor: -20 },
+                            res: "弄堂没有你想象中那么安全。驴老师很快发现了你们，直接请家长谈话。你很想解释只是讨论题目，但这个地点显然对你们非常不利。"
+                        },
+                        success: {
+                            title: "成功",
+                            effect: { stress: -5 },
+                            res: "你们躲在阴影里大气都不敢出，直到驴老师的脚步声逐渐远去。惊险逃过一劫后，你才发现自己的手心全是汗。"
+                        },
+                        critSuccess: {
+                            title: "大成功",
+                            effect: { stress: -8, social: 2 },
+                            res: "你们几乎同时反应过来，完美绕进另一条小路，还装作刚从便利店方向走来。整个过程流畅得像提前排练过，尴尬被留在了甜爱路的风里。"
+                        }
+                    }
+                },
                 { txt: "大大方方走过去打招呼", effect: { teacherFavor: 5, social: 3 }, res: "驴老师被你们的坦荡震惊了，居然只叮嘱了一句“早点回家”，安然度过。" },
                 { txt: "抛下同学，自己百米冲刺逃跑", effect: { social: -15, stress: 5 }, res: "同学对你的懦弱表示极度鄙视，你在班里的名声臭了。" }
             ]
@@ -1241,12 +1417,40 @@
             choices: [
                 {
                     txt: "偷偷进去，速战速决",
-                    effect: { stress: -6 },
-                    res: "教工厕所果然环境优越，你短暂地感受到了不属于学生的尊严。",
-                    chance: {
-                        prob: 0.55,
-                        failEffect: { stress: 10, teacherFavor: -8 },
-                        failRes: "你刚推门出来，就和驴老师四目相对。他沉默了两秒，说：“你现在已经发展到使用教工厕所了？”你被当场教育。"
+                    diceDesc: "你看了看走廊两端，确认暂时没有老师经过。教工厕所的门安静地立在那里，像一扇通往另一个世界的入口。\n\n这次能不能速战速决、不被抓到，要看骰子。",
+                    dice: {
+                        sides: 20,
+                        dc: 13,
+                        bonus: () => {
+                            let value = 0;
+                            const details = [];
+                            if (state.teacherFavor >= 70) { value += 1; details.push("老师不太会第一时间怀疑你 +1"); }
+                            if (state.teacherFavor <= 20) { value -= 2; details.push("老师好感较低 -2"); }
+                            if (state.stress >= 95) { value -= 3; details.push("压力濒临崩溃 -3"); }
+                            else if (state.stress >= 80) { value -= 1; details.push("压力过高 -1"); }
+                            if (hasTalent && hasTalent("read_the_room")) { value += 2; details.push("会看脸色 +2"); }
+                            return { value, details };
+                        },
+                        critFail: {
+                            title: "大失败",
+                            effect: { stress: 14, teacherFavor: -10, social: -2 },
+                            res: "你刚推门出来，就同时撞见驴老师和另一位老师。两个人沉默地看着你，走廊也像突然安静了。你短暂获得的尊严，在这一刻被加倍收回。"
+                        },
+                        fail: {
+                            title: "失败",
+                            effect: { stress: 10, teacherFavor: -8 },
+                            res: "你刚推门出来，就和驴老师四目相对。他沉默了两秒，说：“你现在已经发展到使用教工厕所了？”你被当场教育。"
+                        },
+                        success: {
+                            title: "成功",
+                            effect: { stress: -6 },
+                            res: "教工厕所果然环境优越，你短暂地感受到了不属于学生的尊严。更重要的是，没有任何老师发现这段短暂的越界。"
+                        },
+                        critSuccess: {
+                            title: "大成功",
+                            effect: { stress: -8 },
+                            res: "你顺利完成了这次秘密行动，甚至还赶在上课铃响前回到了座位。那一刻，你对学校空间结构产生了全新的理解。"
+                        }
                     }
                 },
                 {
@@ -1287,12 +1491,40 @@
                 },
                 {
                     txt: "比赛当天假装忘带礼服",
-                    effect: { stress: -3 },
-                    res: "你试图逃避这套灾难礼服。",
-                    chance: {
-                        prob: 0.45,
-                        failEffect: { teacherFavor: -10, social: -4, stress: 8 },
-                        failRes: "驴老师早有准备，从讲台下面掏出一套备用礼服。你不仅没逃掉，还成了全班焦点。"
+                    diceDesc: "你看着那套灾难礼服，决定赌一把：只要说自己忘带，也许就能逃过这场审美事故。可驴老师对班级活动的掌控力向来不容小觑。\n\n这次借口能不能成立，要看骰子。",
+                    dice: {
+                        sides: 20,
+                        dc: 14,
+                        bonus: () => {
+                            let value = 0;
+                            const details = [];
+                            if (state.teacherFavor >= 70) { value += 1; details.push("老师愿意相信你一次 +1"); }
+                            if (state.teacherFavor <= 20) { value -= 2; details.push("老师好感较低 -2"); }
+                            if (state.social >= 70) { value += 1; details.push("同学帮你圆场 +1"); }
+                            if (state.stress >= 80) { value -= 1; details.push("压力过高 -1"); }
+                            if (hasTalent && hasTalent("read_the_room")) { value += 1; details.push("会看脸色 +1"); }
+                            return { value, details };
+                        },
+                        critFail: {
+                            title: "大失败",
+                            effect: { stress: 12, teacherFavor: -12, social: -5 },
+                            res: "驴老师早有准备，从讲台下面掏出一套备用礼服，而且尺码比原版更加灾难。你不仅没逃掉，还在全班注视下完成了公开换装前的精神崩溃。"
+                        },
+                        fail: {
+                            title: "失败",
+                            effect: { stress: 8, teacherFavor: -10, social: -4 },
+                            res: "驴老师早有准备，从讲台下面掏出一套备用礼服。你不仅没逃掉，还成了全班焦点。"
+                        },
+                        success: {
+                            title: "成功",
+                            effect: { stress: -3 },
+                            res: "你的借口居然成立了。虽然班委看你的眼神很复杂，但你至少暂时逃过了那套灾难礼服。"
+                        },
+                        critSuccess: {
+                            title: "大成功",
+                            effect: { stress: -4, teacherFavor: 1 },
+                            res: "你不仅逃过了礼服，还被临时安排去帮忙搬道具。驴老师觉得你虽然状况频出，但至少还知道为班级出力。"
+                        }
                     }
                 }
             ]
@@ -1303,12 +1535,40 @@
             choices: [
                 {
                     txt: "咬牙坚持跑完全程",
-                    effect: { stress: 8, teacherFavor: 3, social: 2 },
-                    res: "你跑到最后几乎只能听见自己的喘气声，但还是撑到了终点。肘老师点了点头，旁边同学也给你鼓掌。",
-                    chance: {
-                        prob: 0.97,
-                        failEffect: { stress: 14, social: -2 },
-                        failRes: "你本来已经快撑到终点，旁边同学却突然咳得停不下来，最后扶着膝盖当场呕吐。那股酸味和操场的热气混在一起，你也没忍住跟着吐了出来。体测现场一片混乱，你的压力直接拉满。"
+                    diceDesc: "发令声响起后，你的腿开始机械地向前迈。操场一圈又一圈地重复，太阳、喘气声和肘老师的哨声混在一起。\n\n这不是能不能逃掉的问题，而是你今天能以什么状态撑到终点。掷骰判定这次体测的命运。",
+                    dice: {
+                        sides: 20,
+                        dc: 8,
+                        bonus: () => {
+                            let value = 0;
+                            const details = [];
+                            if (state.stress >= 95) { value -= 4; details.push("压力濒临崩溃 -4"); }
+                            else if (state.stress >= 80) { value -= 2; details.push("压力过高 -2"); }
+                            if (state.social >= 60) { value += 1; details.push("同学鼓励 +1"); }
+                            if (state.teacherFavor >= 70) { value += 1; details.push("不想让老师失望 +1"); }
+                            if (hasTalent && hasTalent("stress_tank")) { value += 2; details.push("抗压怪物 +2"); }
+                            return { value, details };
+                        },
+                        critFail: {
+                            title: "大失败",
+                            effect: { stress: 16, social: -2 },
+                            res: "你本来已经快撑到终点，旁边同学却突然咳得停不下来，最后扶着膝盖当场呕吐。那股酸味和操场的热气混在一起，你也没忍住跟着吐了出来。体测现场一片混乱，你的压力直接拉满。"
+                        },
+                        fail: {
+                            title: "失败",
+                            effect: { stress: 10, teacherFavor: 1 },
+                            res: "你跑完了全程，但最后几乎是靠惯性挪过终点。肘老师没有批评你，只是让你去旁边缓一缓。你感觉自己的灵魂还落在上一圈跑道上。"
+                        },
+                        success: {
+                            title: "成功",
+                            effect: { stress: 8, teacherFavor: 3, social: 2 },
+                            res: "你跑到最后几乎只能听见自己的喘气声，但还是撑到了终点。肘老师点了点头，旁边同学也给你鼓掌。"
+                        },
+                        critSuccess: {
+                            title: "大成功",
+                            effect: { stress: 5, teacherFavor: 5, social: 3 },
+                            res: "最后半圈你居然还能提速。冲过终点时，旁边同学一边喘一边说你是不是偷偷开了外挂。肘老师难得露出了满意的表情。"
+                        }
                     }
                 },
                 {
@@ -1370,13 +1630,41 @@
                 },
                 {
                 txt: "憋笑憋到内伤",
-                 effect: { stress: -3, social: 2 },
-                    res: "你死死咬住嘴唇，努力不让自己笑出声。旁边同学的肩膀也在微微发抖，你们在无声中达成了某种共识。",
-                    chance: {
-                     prob: 0.75,
-                     failEffect: { stress: 6, teacherFavor: -4 },
-                      failRes: "你终究还是没憋住，发出一声非常不合时宜的气音。驴老师的目光立刻扫了过来，你被一并列入重点观察对象。"
-                            }
+                    diceDesc: "老虚的苹果还停在半空，驴老师的目光已经像探照灯一样扫了过来。你死死咬住嘴唇，旁边同学的肩膀也在微微发抖。\n\n这一次，能不能守住表情管理，要看骰子。",
+                    dice: {
+                        sides: 20,
+                        dc: 12,
+                        bonus: () => {
+                            let value = 0;
+                            const details = [];
+                            if (state.stress >= 95) { value -= 4; details.push("压力濒临崩溃 -4"); }
+                            else if (state.stress >= 80) { value -= 2; details.push("压力过高 -2"); }
+                            if (state.social >= 70) { value -= 1; details.push("太容易和同学共鸣 -1"); }
+                            if (hasTalent && hasTalent("read_the_room")) { value += 2; details.push("会看脸色 +2"); }
+                            if (state.teacherFavor <= 20) { value -= 1; details.push("老师最近盯你更紧 -1"); }
+                            return { value, details };
+                        },
+                        critFail: {
+                            title: "大失败",
+                            effect: { stress: 10, teacherFavor: -6, social: 1 },
+                            res: "你不仅笑出了声，还带动旁边同学一起破功。驴老师的目光像冷水一样泼过来，你们瞬间从旁观者变成了事故参与者。"
+                        },
+                        fail: {
+                            title: "失败",
+                            effect: { stress: 6, teacherFavor: -4 },
+                            res: "你终究还是没憋住，发出一声非常不合时宜的气音。驴老师的目光立刻扫了过来，你被一并列入重点观察对象。"
+                        },
+                        success: {
+                            title: "成功",
+                            effect: { stress: -3, social: 2 },
+                            res: "你死死咬住嘴唇，努力不让自己笑出声。旁边同学的肩膀也在微微发抖，你们在无声中达成了某种共识。"
+                        },
+                        critSuccess: {
+                            title: "大成功",
+                            effect: { stress: -4, social: 3, teacherFavor: 1 },
+                            res: "你不仅成功憋住，还用眼神提醒同桌低头看书。驴老师扫过来的时候，你们看起来像两个认真反思课堂纪律的普通学生。"
+                        }
+                    }
                 },
                  {
                 txt: "小声提醒老虚把苹果收起来",

@@ -118,6 +118,63 @@
                 transform: scaleY(1.35);
             }
         }
+
+
+        /* 命运事件：D20 骰子动画 */
+        .dice-panel {
+            margin: 12px 0 18px;
+            padding: 18px 14px;
+            border-radius: 18px;
+            background: linear-gradient(180deg, #eef2ff 0%, #ffffff 100%);
+            border: 1px solid #c7d2fe;
+            text-align: center;
+            box-shadow: 0 8px 22px rgba(99, 102, 241, 0.12);
+        }
+        .dice-label {
+            font-size: 0.9rem;
+            font-weight: 900;
+            color: #4338ca;
+            margin-bottom: 10px;
+        }
+        .dice-box {
+            width: 96px;
+            height: 96px;
+            margin: 0 auto 12px;
+            border-radius: 24px;
+            background: #ffffff;
+            border: 2px solid #818cf8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.35rem;
+            font-weight: 950;
+            color: var(--primary);
+            box-shadow: 0 10px 26px rgba(99, 102, 241, 0.20);
+            user-select: none;
+        }
+        .dice-box.rolling {
+            animation: diceShake 0.11s linear infinite;
+        }
+        .dice-result-title {
+            font-weight: 900;
+            color: #4338ca;
+            margin-top: 4px;
+            min-height: 1.4em;
+        }
+        .dice-roll-btn {
+            width: 100%;
+            margin-top: 4px;
+        }
+        .dice-roll-btn:disabled {
+            background: #cbd5e1;
+            color: #64748b;
+        }
+        @keyframes diceShake {
+            0% { transform: rotate(-5deg) translateX(-1px); }
+            50% { transform: rotate(5deg) translateX(1px); }
+            100% { transform: rotate(-5deg) translateX(-1px); }
+        }
+
         .status-row {
             display: flex; justify-content: space-between; align-items: center;
             gap: 10px; margin-bottom: 12px;
@@ -299,7 +356,7 @@
     <h1>新华初模拟器</h1>
     <button onclick="startGame()">开始游戏</button>
     <button onclick="showAchievements()" style="margin-top: 15px; background: #95a5a6; padding: 10px 30px; font-size: 1rem;">🏆 结局成就</button>
-    <div class="version-label">v0.392</div>
+    <div class="version-label">v0.393</div>
 </div>
 
 <div id="achievements-screen">
@@ -447,7 +504,9 @@
         talentRefreshesLeft: 3, // 开局天赋选择界面可重新抽取次数
         familyConnectionUsed: false, // “家里有人”天赋的老师好感保护是否已触发
         weeklyTestEventDone: false, // 预备班11月固定事件“周周爽”是否已触发
-        pendingEnglishTeacherEvent: false // 兼容旧版顺序事件字段
+        pendingEnglishTeacherEvent: false, // 兼容旧版顺序事件字段
+        fateEventsDone: {}, // 记录命运事件是否已经触发过
+        pendingEventQueue: [] // 额外事件队列：命运事件不占用固定/随机事件名额
     };
 
     const months = ["8月", "9月", "10月", "11月", "12月", "1月", "2月", "3月", "4月", "5月", "6月", "7月"];
@@ -1634,6 +1693,10 @@
 
     // --- 弹窗逻辑 ---
     function openModal(ev) {
+        if (ev && ev.dice) {
+            openDiceModal(ev);
+            return;
+        }
         state.inEvent = true;
         const modalContent = document.getElementById('modal-content');
         modalContent.classList.toggle('romance-ending-modal', ev.theme === 'romanceEnding');
@@ -1665,6 +1728,92 @@
             rerollBtn.onclick = rerollTalents;
             btnGroup.appendChild(rerollBtn);
         }
+    }
+
+
+    function openDiceModal(ev) {
+        state.inEvent = true;
+        const modalContent = document.getElementById('modal-content');
+        modalContent.classList.remove('romance-ending-modal', 'hidden-achievement-modal');
+        document.getElementById('modal-overlay').style.display = 'flex';
+        document.getElementById('m-title').innerText = ev.title;
+        document.getElementById('m-desc').innerText = ev.desc;
+        document.getElementById('m-result').style.display = 'none';
+
+        const btnGroup = document.getElementById('m-choices');
+        btnGroup.innerHTML = `
+            <div class="dice-panel">
+                <div class="dice-label">🎲 命运判定 D${ev.dice.sides || 20}</div>
+                <div class="dice-box" id="dice-box">?</div>
+                <div class="dice-result-title" id="dice-result-title">点击掷骰，看看命运站在哪边。</div>
+                <button class="dice-roll-btn" id="dice-roll-btn">🎲 掷骰</button>
+            </div>
+        `;
+        document.getElementById('dice-roll-btn').onclick = () => rollDiceForEvent(ev);
+    }
+
+    function getDiceOutcome(ev, roll) {
+        const dice = ev.dice;
+        const sides = dice.sides || 20;
+        if (roll === 1) return dice.critFail;
+        if (roll === sides) return dice.critSuccess;
+        if (roll >= dice.dc) return dice.success;
+        return dice.fail;
+    }
+
+    function rollDiceForEvent(ev) {
+        const dice = ev.dice;
+        const sides = dice.sides || 20;
+        const box = document.getElementById('dice-box');
+        const title = document.getElementById('dice-result-title');
+        const rollBtn = document.getElementById('dice-roll-btn');
+        if (!box || !title || !rollBtn) return;
+
+        rollBtn.disabled = true;
+        rollBtn.innerText = '掷骰中...';
+        box.classList.add('rolling');
+        title.innerText = '骰子正在桌面上滚动……';
+
+        let ticks = 0;
+        const maxTicks = 18;
+        const timer = setInterval(() => {
+            ticks++;
+            box.innerText = Math.floor(Math.random() * sides) + 1;
+            if (ticks >= maxTicks) {
+                clearInterval(timer);
+                const roll = Math.floor(Math.random() * sides) + 1;
+                box.classList.remove('rolling');
+                box.innerText = roll;
+                resolveDiceEvent(ev, roll);
+            }
+        }, 70);
+    }
+
+    function resolveDiceEvent(ev, roll) {
+        const outcome = getDiceOutcome(ev, roll);
+        const dice = ev.dice;
+        const title = document.getElementById('dice-result-title');
+        if (title) {
+            title.innerText = `D${dice.sides || 20} = ${roll}｜${outcome.title}`;
+        }
+
+        let effectStr = [];
+        const finalEffect = outcome.effect || {};
+        for (let key in finalEffect) {
+            let val = applyEffectValue(key, finalEffect[key]);
+            let sign = val >= 0 ? "+" : "";
+            let name = statNames[key] || key;
+            effectStr.push(`${name} ${sign}${val}`);
+        }
+
+        const effectHtml = effectStr.length > 0 ? `<br><br><span style="color:var(--primary); font-weight:bold;">${effectStr.join(', ')}</span>` : "";
+        const logMessage = `【${ev.title}｜D${dice.sides || 20}=${roll}｜${outcome.title}】 ${outcome.res}` + (effectStr.length > 0 ? `<br><span style="color:var(--primary); font-size:0.9em; font-weight:bold;">${effectStr.join(', ')}</span>` : '');
+        addLog(logMessage);
+
+        document.getElementById('m-choices').innerHTML = '';
+        document.getElementById('m-result').style.display = 'block';
+        document.getElementById('m-result-text').innerHTML = `🎲 D${dice.sides || 20} = ${roll}｜${outcome.title}<br><br>${outcome.res}${effectHtml}`;
+        updateUI();
     }
 
     function selectChoice(ev, idx) {
@@ -2487,6 +2636,8 @@
         state.familyConnectionUsed = false;
         state.weeklyTestEventDone = false;
         state.pendingEnglishTeacherEvent = false;
+        state.fateEventsDone = {};
+        state.pendingEventQueue = [];
         resetRomance();
         state.warningFlags = {};
         state.monthIndex = 0;
@@ -2544,6 +2695,10 @@
         if (state.pendingEnglishTeacherEvent) {
             state.pendingEnglishTeacherEvent = false;
             triggerEnglishTeacherEvent();
+            return;
+        }
+
+        if (openNextQueuedEvent()) {
             return;
         }
 
@@ -2704,6 +2859,61 @@
         setTimeout(() => {
             openModal(weeklyTestEvent);
         }, 500);
+    }
+
+
+    // --- 命运事件 / D20 掷骰系统 ---
+    const fateChoiceQuestionEvent = {
+        title: "命运的选择题",
+        type: "dice",
+        desc: "自从知道“周周爽”不是玩笑以后，你开始逐渐习惯每周都有小测。可这一次，数学卷子的最后一道选择题你完全没有思路。\n\n四个选项排在纸上，像四扇通往不同命运的小门。你看了看时间，又看了看监考老师，只能把笔尖悬在答题卡上。\n\n这一次，努力已经来不及了。剩下的，只能交给命运。",
+        dice: {
+            sides: 20,
+            dc: 12,
+            critFail: {
+                title: "大失败",
+                effect: { knowledge: -2, stress: 10 },
+                res: "你不仅完美避开了正确答案，还在最后一分钟把前面一道原本写对的题改错了。卷子发下来时，你看着那两个鲜红的叉，感觉命运这东西有时候确实不讲武德。"
+            },
+            fail: {
+                title: "失败",
+                effect: { stress: 5 },
+                res: "你选错了。虽然只是一道选择题，但它精准地提醒了你：周测不会因为名字叫“爽”就真的变爽。"
+            },
+            success: {
+                title: "成功",
+                effect: { knowledge: 1, stress: -2 },
+                res: "你居然蒙对了。讲评时你努力装出一副“这题我本来就会”的样子，心里却默默感谢了一下宇宙。"
+            },
+            critSuccess: {
+                title: "大成功",
+                effect: { knowledge: 2, stress: -5, teacherFavor: 2 },
+                res: "你不仅蒙对了，还刚好因为这题保住了一个不错的分数。驴老师讲评时甚至说你这题“判断得还可以”。你低头看着卷子，第一次感到命运也会偶尔站在学生这边。"
+            }
+        }
+    };
+
+    function queueEvent(ev) {
+        if (!state.pendingEventQueue) state.pendingEventQueue = [];
+        state.pendingEventQueue.push(ev);
+    }
+
+    function openNextQueuedEvent() {
+        if (!state.pendingEventQueue || state.pendingEventQueue.length === 0) return false;
+        const ev = state.pendingEventQueue.shift();
+        state.inEvent = true;
+        setTimeout(() => openModal(ev), 500);
+        return true;
+    }
+
+    function maybeQueueFateChoiceQuestionEvent() {
+        // “周周爽”的下一回合：预备班 12 月。命运事件只入队，不替代普通随机事件。
+        if (state.monthIndex === 4 && !state.fateEventsDone.choiceQuestion) {
+            state.fateEventsDone.choiceQuestion = true;
+            queueEvent(fateChoiceQuestionEvent);
+            return true;
+        }
+        return false;
     }
 
     function triggerEnglishTeacherEvent() {
@@ -3064,6 +3274,9 @@
             return;
         }
 
+        // 命运事件判定：额外入队，不占用固定事件或普通随机事件名额。
+        maybeQueueFateChoiceQuestionEvent();
+
         // 随机事件判定：第一个月（执行完进入10月前，此时 monthIndex 为 2）不触发。
         // 正式恋爱后，恋爱日常事件和普通随机事件放进同一个池子，整体概率略高，但不会再单独 60% 高频触发。
         const randomEventChance = (state.romance.dating && !state.romance.ended) ? 0.35 : 0.25;
@@ -3109,10 +3322,12 @@
                     state.romance.recentDatingEvents = [...recent, ev.title].slice(-3);
                     state.romance.lastEventMonth = state.monthIndex;
                 }
-                state.inEvent = true; // 立即锁定UI状态，防止500ms内玩家狂点按钮导致错乱
-                setTimeout(() => openModal(ev), 500);
+                queueEvent(ev);
             }
         }
+
+        // 命运事件和普通随机事件都在这里统一弹出；命运事件不会挤掉随机事件。
+        openNextQueuedEvent();
     }
 
     function triggerEnding(type) {

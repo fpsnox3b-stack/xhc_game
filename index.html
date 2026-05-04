@@ -299,7 +299,7 @@
     <h1>新华初模拟器</h1>
     <button onclick="startGame()">开始游戏</button>
     <button onclick="showAchievements()" style="margin-top: 15px; background: #95a5a6; padding: 10px 30px; font-size: 1rem;">🏆 结局成就</button>
-    <div class="version-label">v0.391</div>
+    <div class="version-label">v0.392</div>
 </div>
 
 <div id="achievements-screen">
@@ -856,7 +856,8 @@
     }
 
     // --- 军训事件库 ---
-    const militaryEvents = [
+    // 前两个固定，中间两个从随机池抽取，最后固定结营，降低多周目重复感。
+    const militaryIntroEvents = [
         {
             title: "踏入中州路102号",
             desc: "201X年8月，带着几分忐忑，你来到了这所传说中以严苛管理和高升学率闻名的新华初级中学。不远处的操场上，你的班主任驴老师正拿着花名册，面无表情地打量着你们这群新生。初中四年的青春与战斗，即将从这场残酷的军训开始……",
@@ -872,7 +873,10 @@
                 { txt: "自信幽默地展示才艺", effect: { social: 5, teacherFavor: 5 }, res: "驴老师露出了难得的微笑，同学们记住了你。" },
                 { txt: "冷酷报个名字直接坐下", effect: { social: -5 }, res: "气氛有点尴尬，驴老师微微皱眉。" }
             ]
-        },
+        }
+    ];
+
+    const militaryRandomEvents = [
         {
             title: "驴老师立威",
             desc: "因为有几个男生迟到，驴老师决定全班在烈日下加站 15 分钟军姿。",
@@ -894,15 +898,133 @@
             ]
         },
         {
-            title: "结营颁奖",
-            desc: "最后一天汇演，校长在台上冗长演讲。驴老师在方阵旁来回巡视。",
+            title: "水壶失踪事件",
+            desc: "烈日下站完军姿，你终于等到休息。可当你走到队伍旁边时，却发现自己的水壶不见了。旁边摆着几十个长得差不多的水壶，每一个都像是你的，又都不像。",
             choices: [
-                { txt: "站标准军姿拼命鼓掌", effect: { teacherFavor: 8, stress: 5 }, res: "驴老师在心中记下了你的态度，印象分大加。" },
-                { txt: "偷偷放松站姿发呆", effect: { stress: -5, teacherFavor: -2 }, res: "身体舒服了一点，但被驴老师提醒了一次。" },
-                { txt: "班级获奖时大声欢呼", effect: { social: -5, stress: 2 }, res: "你想带动班级气氛，不过同学们觉得你有点神经。" }
+                {
+                    txt: "冷静寻找自己的水壶",
+                    effect: { stress: 5, teacherFavor: 2 },
+                    res: "你沿着队伍边缘找了好几圈，终于在隔壁排旁边发现了自己的水壶。虽然浪费了休息时间，但至少没有引发混乱。"
+                },
+                {
+                    txt: "随便拿一个看起来像的",
+                    effect: { stress: -3 },
+                    res: "你拿起一个相似的水壶猛灌几口，暂时活了过来。",
+                    chance: {
+                        prob: 0.55,
+                        failEffect: { stress: 10, social: -3 },
+                        failRes: "休息结束前，一个同学突然大喊自己的水壶被人拿了。你低头看了看手里的壶，感觉整个操场都安静了。"
+                    }
+                },
+                {
+                    txt: "向旁边同学求助",
+                    effect: { social: 4, stress: 2 },
+                    res: "旁边同学帮你一起找，最后终于从一堆水壶里把它认了出来。你们因为这件小事熟了一点。"
+                }
+            ]
+        },
+        {
+            title: "口号喊破音",
+            desc: "教官要求每个班轮流喊口号。轮到你们班时，驴老师站在队伍旁边盯着所有人。你深吸一口气，准备喊出气势。",
+            choices: [
+                {
+                    txt: "拼尽全力大声喊",
+                    effect: { teacherFavor: 3, stress: 4 },
+                    res: "你的声音穿过操场，虽然最后一个字有点劈叉，但气势确实出来了。驴老师微微点头。"
+                },
+                {
+                    txt: "混在人群里小声喊",
+                    effect: { stress: -3, teacherFavor: -2 },
+                    res: "你成功把自己藏进了集体声音里。只是驴老师好像还是扫了你一眼。"
+                },
+                {
+                    txt: "喊到一半突然破音",
+                    effect: { social: 5, stress: 6 },
+                    res: "你本来想喊出气势，结果声音突然拐了个弯。旁边几个同学差点憋笑憋到原地去世。你社死了，但也莫名其妙被大家记住了。"
+                }
+            ]
+        },
+        {
+            title: "正步顺拐",
+            desc: "下午训练正步。教官一边喊口令，一边盯着每个人的手脚。你本来觉得这没什么难的，直到你发现自己的左手和左脚正在一起往前走。",
+            choices: [
+                {
+                    txt: "强行调整节奏",
+                    effect: { stress: 6, teacherFavor: 2 },
+                    res: "你在一阵混乱中重新找回了左右手脚的关系。虽然动作僵硬，但至少没有继续顺拐。"
+                },
+                {
+                    txt: "假装自己没有顺拐",
+                    effect: { stress: -2 },
+                    res: "你努力摆出一副“我就是这样走”的表情。",
+                    chance: {
+                        prob: 0.65,
+                        failEffect: { stress: 10, teacherFavor: -4 },
+                        failRes: "教官终于忍不住喊停：“你这是正步还是机器人故障？”全班目光瞬间集中到你身上。"
+                    }
+                },
+                {
+                    txt: "和旁边同学互相提醒",
+                    effect: { social: 4, stress: 3 },
+                    res: "你们小声互相报左右，虽然看起来像两台延迟严重的机器，但总算慢慢走顺了。"
+                }
+            ]
+        },
+        {
+            title: "教官的临时点名",
+            desc: "休息结束前，教官突然开始点名检查队列。有人还在喝水，有人还没系好鞋带，你也刚刚从地上站起来，脑子还没完全回到身体里。",
+            choices: [
+                {
+                    txt: "立刻站好，大声答到",
+                    effect: { teacherFavor: 3, stress: 5 },
+                    res: "你几乎是条件反射般站直，大声答到。驴老师在旁边看见了，似乎对你的反应速度还算满意。"
+                },
+                {
+                    txt: "慢半拍才反应过来",
+                    effect: { stress: 6 },
+                    res: "你听见名字后愣了一下才答到。教官皱了皱眉，但没有继续追究。"
+                },
+                {
+                    txt: "帮旁边同学提醒名字",
+                    effect: { social: 4, stress: 4 },
+                    res: "旁边同学差点没反应过来，你赶紧用胳膊轻轻碰了他一下。你们惊险过关，对方投来了感激的眼神。"
+                },
+                {
+                    txt: "因为走神没听见",
+                    effect: { stress: -2, teacherFavor: -5 },
+                    res: "你正在盯着操场边的树发呆，完全没听见自己的名字。",
+                    chance: {
+                        prob: 0.6,
+                        failEffect: { stress: 12, teacherFavor: -6 },
+                        failRes: "教官连续喊了两遍，你才猛地反应过来。驴老师的表情已经从严肃变成了危险。"
+                    }
+                }
             ]
         }
     ];
+
+    const militaryFinalEvent = {
+        title: "结营颁奖",
+        desc: "最后一天汇演，校长成金宝在台上冗长演讲。驴老师在方阵旁来回巡视。",
+        choices: [
+            { txt: "站标准军姿拼命鼓掌", effect: { teacherFavor: 8, stress: 5 }, res: "驴老师在心中记下了你的态度，印象分大加。" },
+            { txt: "偷偷放松站姿发呆", effect: { stress: -5, teacherFavor: -2 }, res: "身体舒服了一点，但被驴老师提醒了一次。" },
+            { txt: "班级获奖时大声欢呼", effect: { social: -5, stress: 2 }, res: "你想带动班级气氛，不过同学们觉得你有点神经。" }
+        ]
+    };
+
+    function buildMilitaryEventsForThisRun() {
+        const pool = [...militaryRandomEvents];
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+        return [
+            ...militaryIntroEvents,
+            ...pool.slice(0, 2),
+            militaryFinalEvent
+        ];
+    }
 
     // --- 随机事件库 ---
     const randomEvents = [
@@ -2482,7 +2604,7 @@
     }
 
     function startTalentSelection() {
-        militaryQueue = [...militaryEvents];
+        militaryQueue = buildMilitaryEventsForThisRun();
         const offeredTalents = getRandomTalents(3);
         const talentChoices = offeredTalents.map(t => ({
             txt: `选择「${t.name}」\n${t.desc}`,
@@ -2512,7 +2634,7 @@
     }
 
     function startMilitaryTraining() {
-        militaryQueue = [...militaryEvents];
+        militaryQueue = buildMilitaryEventsForThisRun();
         nextMilitaryStep();
     }
 

@@ -299,7 +299,7 @@
     <h1>新华初模拟器</h1>
     <button onclick="startGame()">开始游戏</button>
     <button onclick="showAchievements()" style="margin-top: 15px; background: #95a5a6; padding: 10px 30px; font-size: 1rem;">🏆 结局成就</button>
-    <div class="version-label">v0.386</div>
+    <div class="version-label">v0.387</div>
 </div>
 
 <div id="achievements-screen">
@@ -443,7 +443,9 @@
         lugouqiaoDone: false,
         knowledgeCapNotified: {},
         envelopeEventChecked: false, // 初三第一个月结束后“那只信封”事件是否已经判定过
-        pendingJuniorThreeDeclaration: false // 保留字段：用于旧版顺序事件兼容
+        pendingJuniorThreeDeclaration: false, // 保留字段：用于旧版顺序事件兼容
+        talentRefreshesLeft: 3, // 开局天赋选择界面可重新抽取次数
+        familyConnectionUsed: false // “家里有人”天赋的老师好感保护是否已触发
     };
 
     const months = ["8月", "9月", "10月", "11月", "12月", "1月", "2月", "3月", "4月", "5月", "6月", "7月"];
@@ -495,6 +497,26 @@
             id: "city_explorer",
             name: "城市探索者",
             desc: "部分事件更容易出现。你的青春地图不只在教室。"
+        },
+        {
+            id: "family_connections",
+            name: "家里有人",
+            desc: "老师好感首次归零时不会立刻被劝退，而是触发一次特殊保护：老师好感恢复到10，但压力上升，社交下降。"
+        },
+        {
+            id: "clutch_player",
+            name: "临场爆种",
+            desc: "初三后半段知识增长 +15%，但压力增加 +5%。越接近毕业，你越容易进入最后冲刺状态。"
+        },
+        {
+            id: "late_bloomer",
+            name: "慢热型",
+            desc: "初二前知识增长 -6%，初二以后知识增长 +10%。你不是一开始就亮眼的人，但越到后面越进入状态。"
+        },
+        {
+            id: "read_the_room",
+            name: "会看脸色",
+            desc: "老师好感下降幅度减少 25%，社交增长 -5%。你很懂什么时候该闭嘴。"
         }
     ];
 
@@ -550,6 +572,18 @@
             case "romcom_protagonist":
                 if (key === "romanceAffection" && val > 0) result *= 1.10;
                 if (key === "stress" && val > 0 && state.romance && state.romance.met) result *= 1.10;
+                break;
+            case "clutch_player":
+                if (key === "knowledge" && val > 0 && state.monthIndex >= 42) result *= 1.15;
+                if (key === "stress" && val > 0) result *= 1.05;
+                break;
+            case "late_bloomer":
+                if (key === "knowledge" && val > 0 && state.monthIndex < 24) result *= 0.94;
+                if (key === "knowledge" && val > 0 && state.monthIndex >= 24) result *= 1.10;
+                break;
+            case "read_the_room":
+                if (key === "teacherFavor" && val < 0) result *= 0.75;
+                if (key === "social" && val > 0) result *= 0.95;
                 break;
         }
 
@@ -1294,11 +1328,41 @@
         }
     ];
 
+    function triggerFamilyConnectionProtection() {
+        if (!hasTalent("family_connections") || state.familyConnectionUsed) return false;
+
+        state.familyConnectionUsed = true;
+        state.teacherFavor = 10;
+        state.stress += stressGain(15);
+        state.social -= 5;
+
+        const protectionEvent = {
+            title: "家长的一个电话",
+            desc: "你和驴老师的关系已经降到了冰点。原本这一次事情几乎要闹到无法收场，但家长似乎打了几个电话。第二天，事情没有继续扩大。班里没人明说发生了什么，只是你明显感觉到，有些目光变得更复杂了。",
+            choices: [{
+                txt: "沉默地回到座位上",
+                effect: {},
+                res: "这件事就这样被压了下去。你没有被劝退，但也没有真正赢。驴老师对你的态度变得更加冷淡，同学们看你的眼神也多了点说不清的距离感。老师好感恢复到 10，压力明显上升，社交下降。"
+            }]
+        };
+
+        if (state.inEvent) {
+            state.pendingEnding = protectionEvent;
+        } else {
+            openModal(protectionEvent);
+        }
+        return true;
+    }
+
     function updateUI() {
         // 判定结束条件 (在限制范围之前判定，才能捕捉到负数或超100的情况)
         if (state.knowledge < 0 && !state.isGameOver) triggerEnding("knowledge");
         if (state.stress >= 100 && !state.isGameOver) triggerEnding("stress");
-        if (state.teacherFavor <= 0 && !state.isGameOver) triggerEnding("teacher");
+        if (state.teacherFavor <= 0 && !state.isGameOver) {
+            if (!triggerFamilyConnectionProtection()) {
+                triggerEnding("teacher");
+            }
+        }
 
         // 统一限制数值范围在 0~100 之间，防止出现负压力或属性爆表
         state.knowledge = Math.max(0, Math.min(getKnowledgeMax(), state.knowledge));
@@ -1456,6 +1520,19 @@
             b.onclick = () => selectChoice(ev, idx);
             btnGroup.appendChild(b);
         });
+
+        if (ev.allowTalentRefresh) {
+            const rerollBtn = document.createElement('button');
+            rerollBtn.className = 'choice-btn';
+            rerollBtn.style.textAlign = 'center';
+            rerollBtn.style.marginTop = '6px';
+            rerollBtn.style.background = state.talentRefreshesLeft > 0 ? '#eef2ff' : '#e2e8f0';
+            rerollBtn.style.color = state.talentRefreshesLeft > 0 ? '#4338ca' : '#94a3b8';
+            rerollBtn.innerText = state.talentRefreshesLeft > 0 ? `🔄 重新抽取（剩余 ${state.talentRefreshesLeft} 次）` : '重新抽取次数已用完';
+            rerollBtn.disabled = state.talentRefreshesLeft <= 0;
+            rerollBtn.onclick = rerollTalents;
+            btnGroup.appendChild(rerollBtn);
+        }
     }
 
     function selectChoice(ev, idx) {
@@ -2274,6 +2351,8 @@
         state.knowledgeCapNotified = {};
         state.envelopeEventChecked = false;
         state.pendingJuniorThreeDeclaration = false;
+        state.talentRefreshesLeft = 3;
+        state.familyConnectionUsed = false;
         resetRomance();
         state.warningFlags = {};
         state.monthIndex = 0;
@@ -2402,9 +2481,16 @@
 
         openModal({
             title: "选择你的初中天赋",
-            desc: "在踏入新华初之前，你似乎天生带着一点不一样的属性。每一局会随机出现 3 个天赋，你可以选择 1 个，也可以不选天赋直接入内。",
-            choices: talentChoices
+            desc: `在踏入新华初之前，你似乎天生带着一点不一样的属性。每一局会随机出现 3 个天赋，你可以选择 1 个，也可以不选天赋直接入内。\n\n如果不满意当前组合，可以重新抽取，剩余 ${state.talentRefreshesLeft} 次。`,
+            choices: talentChoices,
+            allowTalentRefresh: true
         });
+    }
+
+    function rerollTalents() {
+        if (state.talentRefreshesLeft <= 0) return;
+        state.talentRefreshesLeft -= 1;
+        startTalentSelection();
     }
 
     function startMilitaryTraining() {

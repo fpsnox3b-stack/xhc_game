@@ -299,7 +299,7 @@
     <h1>新华初模拟器</h1>
     <button onclick="startGame()">开始游戏</button>
     <button onclick="showAchievements()" style="margin-top: 15px; background: #95a5a6; padding: 10px 30px; font-size: 1rem;">🏆 结局成就</button>
-    <div class="version-label">v0.389</div>
+    <div class="version-label">v0.391</div>
 </div>
 
 <div id="achievements-screen">
@@ -735,7 +735,6 @@
         { id: "end_grad_2", title: "虹口做题家", desc: "高知识考入名校，但社交极低" },
         { id: "end_grad_3", title: "学霸本霸", desc: "稳扎稳打，凭借高分考入名校" },
         { id: "end_grad_4", title: "朋友成群", desc: "虽然成绩平平，但交到了许多挚友" },
-        { id: "end_grad_5", title: "驴老师的爱徒", desc: "成为驴老师最满意的得意门生" },
         { id: "end_grad_6", title: "混世魔丸", desc: "成绩稀烂且驴老师好感极低" },
         { id: "end_grad_7", title: "泯然众人", desc: "平平淡淡地度过了初中四年" },
         { id: "end_stress", title: "不幸退学", desc: "因为压力达到100而退学" },
@@ -751,6 +750,7 @@
         { id: "hidden_esports", title: "电竞选手", desc: "四年里打游戏超过 20 次。新华初没有电竞社，但你已经在心里打完了好几届校内联赛。" },
         { id: "hidden_shop_vip", title: "小卖部 VIP", desc: "小卖部非恋爱专属商品全部买过一遍。老板甚至已经能从你掏钱的姿势判断你今天压力有多大。" },
         { id: "hidden_study_warrior", title: "题海战神", desc: "死磕学习累计达到 25 次。卷子写到最后，连草稿纸都开始害怕你。" },
+        { id: "end_grad_5", title: "驴老师的爱徒", desc: "成绩不能太差，社交也不能太飘，但你极其对驴老师的胃口。毕业时，他难得多嘱咐了你几句。" },
         { id: "hidden_comeback", title: "逆袭之王", desc: "你曾经一度掉到极低知识区，却硬是把分数拉回了市重点水平。新华初不会记住你的狼狈，只会记住你的翻盘。" },
         { id: "hidden_calm_master", title: "情绪管理大师", desc: "在新华初四年里，你从未让压力真正逼近崩溃。不是没有风浪，只是你学会了在风浪里喘气。" }
     ];
@@ -799,6 +799,10 @@
     }
 
     function checkHiddenAchievementsOnGraduation() {
+        const score = Math.floor(state.knowledge);
+        if (state.teacherFavor >= 85 && score >= 500 && state.social < 75) {
+            unlockHiddenAchievement("end_grad_5");
+        }
         if (state.hasBeenVeryLowKnowledge && state.knowledge >= 580) {
             unlockHiddenAchievement("hidden_comeback");
         }
@@ -949,7 +953,11 @@
         },
         {
             title: "甜爱路的“死亡”邂逅",
-            condition: (s) => s.social >= 60,
+            condition: (s) => {
+                const r = s.romance;
+                const inActiveRomance = r && !r.ended && (r.ambiguous || r.dating);
+                return s.social >= 60 && !inActiveRomance;
+            },
             desc: "放学后，你和班里一位异性同学边走边讨论题目，不知不觉从四川北路走到了学校附近著名的“甜爱路”上。突然，你看到前方不远处，驴老师正叼着根烟迎面走来！在新华初，这简直是跳进黄河也洗不清的“早恋”修罗场！",
             choices: [
                 { txt: "光速闪进旁边的弄堂", effect: { stress: -5 }, res: "你们躲在阴影里大气都不敢出，惊险逃过一劫。", 
@@ -1660,8 +1668,8 @@
             ]
         },
         25: {
-            title: "开学后的尴尬",
-            desc: "初二九月。新学期开学，你们又坐回同一间教室。明明暑假里发生了那件事，现在却还要像普通同学一样打招呼。",
+            title: "开学后的微妙距离",
+            desc: "初二九月。新学期开学，你们又坐回同一间教室。暑假里，有些话说出口了，有些话最后还是停在了手机屏幕前。现在重新见面，你们却还要像普通同学一样打招呼。",
             choices: [
                 { txt: "假装自然地聊天", effect: { romanceAffection: 7, stress: -2, social: 1 }, res: "你努力让语气听起来和平时一样。对方也接住了你的话题，尴尬的空气总算被吹散了一点。" },
                 { txt: "借讨论题目的机会靠近", effect: { romanceAffection: 8, knowledge: 2, stress: 1 }, res: "你们从一道题开始重新说话。题目其实不算难，但你们都讲得格外认真。" },
@@ -3020,7 +3028,8 @@
                 school = "职高";
             }
             
-            // 先判断更有特色的路线，再判断普通高分路线，避免“朋友成群”和“驴老师的爱徒”被学霸结局覆盖。
+            // 先判断更有特色的路线，再判断普通高分路线，避免“朋友成群”被学霸结局覆盖。
+            // “驴老师的爱徒”改为隐藏成就，不再覆盖毕业主结局。
             if (score >= 580 && state.social >= 65 && state.teacherFavor >= 70) {
                 title = "六边形战士";
                 desc = `你以接近顶尖的成绩考入了【${school}】，同时还是班级里的人气王，连严厉的驴老师都对你相当认可。学习、朋友、老师评价，你几乎都没有落下。新华初的四年，被你打出了近乎完美的路线。`;
@@ -3029,10 +3038,6 @@
                 title = "虹口做题家";
                 desc = `你靠着夜以继日的努力考入了【${school}】。只是这一路上，你把太多时间留给了卷子和错题本。毕业那天，看着别人合影留念，你默默背着书包独自离开了校园……`;
                 achKey = "end_grad_2";
-            } else if (state.teacherFavor >= 85 && score >= 500 && state.social < 75) {
-                title = "驴老师的爱徒";
-                desc = `你最终考入了【${school}】。成绩或许不是最顶尖的，但你极其对驴老师的胃口。毕业典礼上，平时不苟言笑的他特意拉着你单独嘱咐了很久，你成了他难忘的学生。`;
-                achKey = "end_grad_5";
             } else if (state.social >= 75 && score >= 500 && state.teacherFavor < 85) {
                 title = "朋友成群";
                 desc = `你最终考入了【${school}】。成绩或许不是最耀眼的，但在新华初的四年里，你收获了最可贵的友谊。毕业时，朋友们拉着你拍了无数张合影，青春没有遗憾。`;
